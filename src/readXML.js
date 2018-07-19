@@ -1,61 +1,78 @@
 const fs = require('fs');
 const path = require('path');
 const XmlStream = require('xml-stream');
+const xmlParser = require('xml2json');
 
 var pathMetaboliteMetadata = '/home/abolanos/hmdbProject/';
 var pathNmrPeakList = '/home/abolanos/hmdbProject/hmdb_nmr_peak_lists/';
 var pathFidFiles = '/home/abolanos/hmdbProject/hmdb_fid_files/';
+var pathNmrSpectra = '/home/abolanos/hmdbProject/hmdb_nmr_spectra/';
 
 //create a list of nmr files to import with the metadata
 var listFidFiles = createListFromPath(pathFidFiles);
 var listNmrPeakFiles = createListFromPath(pathNmrPeakList);
+var listNmrSpectra = createListFromPath(pathNmrSpectra, {
+    pId: 5,
+    pDimension: [1,2,3]
+});
 
 var stream = fs.createReadStream(pathMetaboliteMetadata + 'urine_metabolites.xml');
 // var file = fs.createWriteStream('/home/abolanos/text'); // @TODO: create a write stream to avoid possible issues with fs.write method
 var xmlStream = new XmlStream(stream);
 
-// var fd = fs.openSync('metabolite.txt', 'a');
-var count = 0 //for debug
+var fd = fs.openSync('metabolite.txt', 'a');
+var count = 0
+
 xmlStream.on('endElement: metabolite', async (metabolite) => {
     // if (count > 0) return//for debug
     let accession = metabolite['accession'].$text;
-    let nmrPeakListFiles = listNmrPeakFiles[accession];
-    if (!nmrPeakListFiles) return;
+    
     let result = {};
     await parseChildren(metabolite.$children, result);
 
-    let spectra = result['spectra']
+    var spectra = result['spectra'];
     if (!spectra) {
-        console.log(accession)
-        return;
+        console.warn('Accession: ' + accession + ' has not spectra');
+        return
     }
-    return
+
     spectra.forEach((e, i, arr) => {
         if (e.type.toLowerCase().match('nmr')) {
-            let entry = listNmrPeakFiles[accession][e.spectrum_id];
-            if (!entry) {
-                console.log(accession)
-                console.log(e)
-                // console.log(accession, e.spectrum_id, listNmrPeakFiles[accession])
+            var entry;
+            if (listNmrPeakFiles.hasOwnProperty(accession)) entry = listNmrPeakFiles[accession][e.spectrum_id];
+            if (entry) {
+                // readNmrPeakList(pathNmrPeakList, entry.fileName, arr[i])
+            } else if (listNmrSpectra.hasOwnProperty(accession)) {
+                entry = listNmrSpectra[accession][e.spectrum_id]
+                if (entry) {
+                    let spectraDataFile = fs.readFileSync(path.join(pathNmrSpectra, entry.fileName), 'utf8');
+                    let spectraData = xmlParser.toJson(spectraDataFile);
+                }
             }
-            // readNmrPeakList(pathNmrPeakList, e.spectrum_id,
+            if (listFidFiles.hasOwnProperty(accession)) {
+                entry = listFidFiles[accession][e.spectrum_id];
+                if (entry) {
+                    arr[i].jcamp = path.join(listFidFiles, entry.fileName)
+                }
+            }
         }
-    })
+    });
+    
     if (count === 0) {
         prefix = '[';
     } else {
         prefix = ',';
     }
-    // fs.write(fd, prefix + JSON.stringify(result), handdleError);
+    fs.write(fd, prefix + JSON.stringify(result), handdleError);
     // fs.close(fd, (err) => console.log(err))//for debug
-    count++//for debug
+    count++
 });
 
 xmlStream.preserve('metabolite');
-// xmlStream.on('end', () => {
-//     fs.write(fd, ']', handdleError);
-//     fs.close(fd, handdleError);
-// }); //uncomment for final use
+xmlStream.on('end', () => {
+    fs.write(fd, ']', handdleError);
+    fs.close(fd, handdleError);
+}); //uncomment for final use
 
 async function readNmrPeakList() {
 
@@ -82,14 +99,19 @@ async function parseChildren(children, result) { // @TODO: review some problems 
     })
 }
 
-function createListFromPath(path) {
-    var list = fs.readdirSync(path)
+function createListFromPath(path, options = {}) {
+    var {
+        pAccession = 0,
+        pDimension = [1],
+        pId = 2
+    } = options;
+    var list = fs.readdirSync(path);
     var result = {};
     list.forEach((e) => {
         let temp = e.split('_');
-        let accession = temp[0];
-        let dimension = temp[1];
-        let id = temp[2];
+        let accession = temp[pAccession];
+        let dimension = pDimension.map((e) => temp[e]).join('');
+        let id = String(temp[pId]).replace(/\.xml/, '');
         if (!result[accession]) result[accession] = {};
         let entry = result[accession];
         entry[id] = {
