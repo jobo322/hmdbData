@@ -27,7 +27,7 @@ xmlStream.on('endElement: metabolite', async (metabolite) => {
     // if (count > 0) return//for debug
     let accession = metabolite['accession'].$text;
     
-    let result = {};
+    let result = {}, jsonResult = {};
     await parseChildren(metabolite.$children, result);
 
     var spectra = result['spectra'];
@@ -39,9 +39,11 @@ xmlStream.on('endElement: metabolite', async (metabolite) => {
     spectra.forEach((e, i, arr) => {
         if (e.type.toLowerCase().match('nmr')) {
             var entry;
-            if (listNmrPeakFiles.hasOwnProperty(accession)) entry = listNmrPeakFiles[accession][e.spectrum_id];
-            if (entry) {
-                // readNmrPeakList(pathNmrPeakList, entry.fileName, arr[i])
+            if (listFidFiles.hasOwnProperty(accession)) {
+                entry = listFidFiles[accession][e.spectrum_id];
+                if (entry) {
+                    arr[i].jcamp = path.join(listFidFiles, entry.fileName.replace(/\.*/, '.jdx'))
+                }
             } else if (listNmrSpectra.hasOwnProperty(accession)) {
                 entry = listNmrSpectra[accession][e.spectrum_id]
                 if (entry) {
@@ -49,11 +51,11 @@ xmlStream.on('endElement: metabolite', async (metabolite) => {
                     let spectraData = xmlParser.toJson(spectraDataFile);
                 }
             }
-            if (listFidFiles.hasOwnProperty(accession)) {
-                entry = listFidFiles[accession][e.spectrum_id];
-                if (entry) {
-                    arr[i].jcamp = path.join(listFidFiles, entry.fileName)
-                }
+            if (listNmrPeakFiles.hasOwnProperty(accession)) entry = listNmrPeakFiles[accession][e.spectrum_id];
+            if (entry) {
+                var peakListData = fs.readFileSync(path.join(pathNmrPeakList, entry.fileName))
+                console.log(peakListData)
+                // readNmrPeakList(pathNmrPeakList, entry.fileName, arr[i])
             }
         }
     });
