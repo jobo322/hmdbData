@@ -7,7 +7,7 @@ var pathMetaboliteMetadata = '/home/abolanos/hmdbProject/';
 var pathNmrPeakList = '/home/abolanos/hmdbProject/hmdb_nmr_peak_lists/';
 var pathFidFiles = '/home/abolanos/hmdbProject/hmdb_fid_files/';
 var pathNmrSpectra = '/home/abolanos/hmdbProject/hmdb_nmr_spectra/';
-
+var pathToSaveJSON = '/home/abolanos/hmdbProject/hmdb_metabolite_json'
 //create a list of nmr files to import with the metadata
 var listFidFiles = createListFromPath(pathFidFiles);
 var listNmrPeakFiles = createListFromPath(pathNmrPeakList);
@@ -16,65 +16,60 @@ var listNmrSpectra = createListFromPath(pathNmrSpectra, {
     pDimension: [1,2,3]
 });
 
-var stream = fs.createReadStream(pathMetaboliteMetadata + 'urine_metabolites.xml');
+var stream = fs.createReadStream(pathMetaboliteMetadata + 'hmdb_metabolites.xml');
 // var file = fs.createWriteStream('/home/abolanos/text'); // @TODO: create a write stream to avoid possible issues with fs.write method
 var xmlStream = new XmlStream(stream);
 
-var fd = fs.openSync('metabolite.txt', 'a');
-var count = 0
+var count = 0;
 
 xmlStream.on('endElement: metabolite', async (metabolite) => {
+    
     // if (count > 0) return//for debug
     let accession = metabolite['accession'].$text;
-    
+    let fd = fs.openSync(path.join(pathToSaveJSON, accession + '.json'), 'w')
     let result = {}, jsonResult = {};
     await parseChildren(metabolite.$children, result);
 
-    var spectra = result['spectra'];
-    if (!spectra) {
-        console.warn('Accession: ' + accession + ' has not spectra');
-        return
-    }
+    // var spectra = result['spectra'];
+    // if (!spectra) {
+    //     console.warn('Accession: ' + accession + ' has not spectra');
+    //     return
+    // }
 
-    spectra.forEach((e, i, arr) => {
-        if (e.type.toLowerCase().match('nmr')) {
-            var entry;
-            if (listFidFiles.hasOwnProperty(accession)) {
-                entry = listFidFiles[accession][e.spectrum_id];
-                if (entry) {
-                    arr[i].jcamp = path.join(listFidFiles, entry.fileName.replace(/\.*/, '.jdx'))
-                }
-            } else if (listNmrSpectra.hasOwnProperty(accession)) {
-                entry = listNmrSpectra[accession][e.spectrum_id]
-                if (entry) {
-                    let spectraDataFile = fs.readFileSync(path.join(pathNmrSpectra, entry.fileName), 'utf8');
-                    let spectraData = xmlParser.toJson(spectraDataFile);
-                }
-            }
-            if (listNmrPeakFiles.hasOwnProperty(accession)) entry = listNmrPeakFiles[accession][e.spectrum_id];
-            if (entry) {
-                var peakListData = fs.readFileSync(path.join(pathNmrPeakList, entry.fileName))
-                console.log(peakListData)
-                // readNmrPeakList(pathNmrPeakList, entry.fileName, arr[i])
-            }
-        }
-    });
+    // spectra.forEach((e, i, arr) => {
+    //     if (e.type.toLowerCase().match('nmr')) {
+    //         var entry;
+    //         if (listFidFiles.hasOwnProperty(accession)) {
+    //             entry = listFidFiles[accession][e.spectrum_id];
+    //             if (entry) {
+    //                 arr[i].jcamp = path.join(listFidFiles, entry.fileName.replace(/\.*/, '.jdx'))
+    //             }
+    //         } else if (listNmrSpectra.hasOwnProperty(accession)) {
+    //             entry = listNmrSpectra[accession][e.spectrum_id]
+    //             if (entry) {
+    //                 let spectraDataFile = fs.readFileSync(path.join(pathNmrSpectra, entry.fileName), 'utf8');
+    //                 let spectraData = xmlParser.toJson(spectraDataFile);
+    //             }
+    //         }
+    //         if (listNmrPeakFiles.hasOwnProperty(accession)) entry = listNmrPeakFiles[accession][e.spectrum_id];
+    //         if (entry) {
+    //             var peakListData = fs.readFileSync(path.join(pathNmrPeakList, entry.fileName))
+    //             console.log(peakListData)
+    //             // readNmrPeakList(pathNmrPeakList, entry.fileName, arr[i])
+    //         }
+    //     }
+    // });
     
-    if (count === 0) {
-        prefix = '[';
-    } else {
-        prefix = ',';
-    }
-    fs.write(fd, prefix + JSON.stringify(result), handdleError);
-    // fs.close(fd, (err) => console.log(err))//for debug
+    fs.write(fd, JSON.stringify(result), (err) => {
+        fs.close(fd, handdleError)
+    });
     count++
 });
 
 xmlStream.preserve('metabolite');
 xmlStream.on('end', () => {
-    fs.write(fd, ']', handdleError);
-    fs.close(fd, handdleError);
-}); //uncomment for final use
+    console.log(count)
+}); 
 
 async function readNmrPeakList() {
 
