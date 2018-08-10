@@ -11,7 +11,7 @@ req.open('GET', URL + '/HMDB0000002', false);
 req.send(null);
 console.log(req.status)
 if (req.status === 200) {
-    let fd = fs.openSync('responseHMDB0000002', 'w')
+    let fd = fs.openSync('HMDB0000002', 'w');
     fs.write(fd, req.responseText)
     fs.close(fd)
     let cheerioLoaded = cheerio.load(req.responseText);
