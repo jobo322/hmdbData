@@ -2,11 +2,12 @@ const fs = require('fs');
 const path = require('path');
 const papa = require('papaparse');
 
-//var pathNmrPeakList = '/home/abolanos/hmdbProject/hmdb_nmr_peak_lists/';
-var pathNmrPeakList = 'C:\\Users\\juanCBA\\Documents\\hmdbProject\\hmdb_nmr_peak_lists'
+var pathNmrPeakList = '/home/abolanos/hmdbProject/hmdb_nmr_peak_lists/';
+// var pathNmrPeakList = 'C:\\Users\\juanCBA\\Documents\\hmdbProject\\hmdb_nmr_peak_lists'
 
 fs.readdir(pathNmrPeakList, (err, listDir) => {
     var resultJson = {};
+    var counter = 0
     listDir.forEach((file) => {
         if (file.toLowerCase().match('nmrtwod')) return
 
@@ -29,26 +30,24 @@ fs.readdir(pathNmrPeakList, (err, listDir) => {
         
         if (peakListData[peakListData.length - 1] === '\n') peakListData = peakListData.slice(0, peakListData.length - 1)
 
-        let hasTable = peakListData.toLowerCase().indexOf('table') !== -1;
+        let hasTable = peakListData.toLowerCase().indexOf('peaks') !== -1;
         let hasList = peakListData.toLowerCase().indexOf('list') !== -1;
         if (hasTable || hasList) {
-            return
-            peakListData = peakListData.replace(/\n{2,}/g, '\n');
-            let result = peakListData.split('\n');
+            // return
+            let result = peakListData.replace(/\n{2,}/g, '\n').split('\n');
             let descriptorExist = false;
             let headersExist = false;
             let headers = [];
-            let descriptor = ''
+            let descriptor = [];
             result.forEach((e,i,arr) => {
-                hasTable = e.toLowerCase().indexOf('table') !== -1;
-                hasList = e.toLowerCase().indexOf('list') !== -1;
-                if (hasTable || hasList) {
+                hasTable = e.replace(/[ ]+/g, ' ').toLowerCase().split(' ').some((ee) => ee === 'peaks' || ee === 'multiplets' || ee === 'assignments')
+                if (hasTable) {
                     descriptorExist = true;
                     headersExist = false;
-                    descriptor = e.toLowerCase().replace(/[ ]+/g, ' ')
-                    temp[descriptor] = []
+                    descriptor = e.toLowerCase().replace(/[ ]+/g, ' ').split(' ').filter((ee) => ee === 'peaks' || ee === 'multiplets' || ee === 'assignments');
+                    temp[descriptor[0]] = [];
                 } else if (descriptorExist) {
-                    let eSplited = e.split(';');
+                    var eSplited = e.split(';');
                     if (eSplited.length > 1 && !headersExist) {
                         headersExist = true;
                         headers = eSplited;
@@ -57,11 +56,11 @@ fs.readdir(pathNmrPeakList, (err, listDir) => {
                         headers.forEach((head, i) => {
                             toExport[head] = eSplited[i] || '-';
                         })
-                        temp[descriptor].push(toExport)
+                        temp[descriptor[0]].push(toExport)
                     }
                 }
             })
-            console.log(JSON.stringify(temp))
+            // console.log(JSON.stringify(temp))
             // console.log(result.length)
             // if (result.length === 1) {
             //     console.log('\n\nEL NOMBRE ES ' + file)
@@ -70,43 +69,53 @@ fs.readdir(pathNmrPeakList, (err, listDir) => {
             // }
         } else {
             // return
-            // use some modification for file like  HMDB0000176_nmroned_1163_28507.txt
-            console.log('\n\nEL NOMBRE ES ' + file)
-            console.log(JSON.stringify(peakListData))
-            console.log('\n\n' + JSON.stringify(original))
+            // It has only table of peaks (13C peaklist)
+            // console.log('\n\nEL NOMBRE ES ' + file)
+            // console.log(JSON.stringify(peakListData))
+            // console.log('\n\n' + JSON.stringify(original))
+            // console.log(original)
             let result = peakListData.split('\n');
-            let descriptorExist = false;
-            let headersExist = false;
-            let headers = [];
-            let descriptor = '';
-            console.log(result)
+            let firstExist = false;
+            let secondExist = false;
+            var firstHeader, secondHeader, indexFrequency, toExport;
             result.forEach((e, i, arr) => {
-                hasTable = e.toLowerCase().indexOf('table') !== -1;
-                hasList = e.toLowerCase().indexOf('list') !== -1;
-                if (hasTable || hasList) {
-                    descriptorExist = true;
-                    headersExist = false;
-                    descriptor = e.toLowerCase().replace(/[ ]+/g, ' ')
-                    temp[descriptor] = []
-                } else if (descriptorExist) {
-                    let eSplited = e.split(';');
-                    if (eSplited.length > 1 && !headersExist) {
-                        headersExist = true;
-                        headers = eSplited;
-                    } else if (headersExist) {
-                        let toExport = {}
-                        headers.forEach((head, i) => {
-                            toExport[head] = eSplited[i] || '-';
-                        })
-                        temp[descriptor].push(toExport)
+                var eSplited = e.split(';');
+                if (secondExist) {
+                    if (eSplited.length < firstHeader.length + secondHeader - 1) console.warn('data has not all data');
+                    toExport = {}, index = 0;
+                    eSplited.forEach((value, i) => {
+                        toExport[firstHeader[i]] = value
+                    })
+                    // console.log(toExport)
+                    temp['peaks'].push(toExport)
+                } else if (e.toLowerCase().indexOf('address') !== -1) {
+                    firstExist = true;
+                    secondExist = false;
+                    if (eSplited.length < 2) throw new Error('parsing of headers has been problematic');
+                    firstHeader = eSplited.map(ee => ee.toLowerCase().replace(/[ ]+/g, ' '));
+                } else if (e.toLowerCase().indexOf('hz') !== -1) {
+                    secondExist = true;
+                    if (!firstExist) { // there is not the first line just No. hz ppm Height
+                        if (eSplited.length <= 2) throw new Error('parsing of headers has been problematic');
+                        firstHeader = eSplited.map(ee => ee.toLowerCase().replace(/[ ]+/g, ' '));
+                        indexFrequency = Number.MAX_SAFE_INTEGER;
+                    } else {
+                        secondHeader = eSplited.map(ee => ee.toLowerCase().replace(/[ ]+/g, ' '));
+                        indexFrequency = firstHeader.indexOf('frequency');
+                        firstHeader.splice(indexFrequency, 1, ...secondHeader);
+                        firstHeader.splice(0,0,'no.');
+                        firstHeader[firstHeader.length - 1] = 'height';
                     }
+                    temp['peaks'] = [];
                 }
             })
         }
-    // fs.writeFileSync('export.json', JSON.stringify(resultJson))
+
+    fs.writeFileSync('export.json', JSON.stringify(resultJson))
     
         //
         
 
     })
+    console.log('counter ' + String(counter))
 })
