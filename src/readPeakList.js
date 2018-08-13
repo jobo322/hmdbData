@@ -27,14 +27,14 @@ fs.readdir(pathNmrPeakList, (err, listDir) => {
             peakListData = peakListData.replace(/\n[ ]+/g,'\n');
             peakListData = peakListData.replace(/[ ]+/g, ';');
         }
-        
         if (peakListData[peakListData.length - 1] === '\n') peakListData = peakListData.slice(0, peakListData.length - 1)
 
-        let hasTable = peakListData.toLowerCase().indexOf('peaks') !== -1;
-        let hasList = peakListData.toLowerCase().indexOf('list') !== -1;
-        if (hasTable || hasList) {
+        var result = peakListData.replace(/\n{1,}/g, '\n').split('\n');
+        var hasTable = result.some((aa) => aa.replace(/[ ]+/g, ' ').toLowerCase().split(' ').some((ee) => ee === 'peaks' || ee === 'multiplets' || ee === 'assignments'))
+        if (splitFileName[0] === 'HMDB0000010') console.log('fuera')
+        if (hasTable) {
+            if (splitFileName[0] === 'HMDB0000010') console.log('dentro')
             // return
-            let result = peakListData.replace(/\n{2,}/g, '\n').split('\n');
             let descriptorExist = false;
             let headersExist = false;
             let headers = [];
@@ -45,6 +45,7 @@ fs.readdir(pathNmrPeakList, (err, listDir) => {
                     descriptorExist = true;
                     headersExist = false;
                     descriptor = e.toLowerCase().replace(/[ ]+/g, ' ').split(' ').filter((ee) => ee === 'peaks' || ee === 'multiplets' || ee === 'assignments');
+                    if (splitFileName[0] === 'HMDB0000010') console.log(descriptor)
                     temp[descriptor[0]] = [];
                 } else if (descriptorExist) {
                     var eSplited = e.split(';');
@@ -60,6 +61,7 @@ fs.readdir(pathNmrPeakList, (err, listDir) => {
                     }
                 }
             })
+            if (splitFileName[0] === 'HMDB0000010') console.log(temp)
             // console.log(JSON.stringify(temp))
             // console.log(result.length)
             // if (result.length === 1) {
@@ -68,13 +70,6 @@ fs.readdir(pathNmrPeakList, (err, listDir) => {
             //     console.log('\n\n' + JSON.stringify(original))
             // }
         } else {
-            // return
-            // It has only table of peaks (13C peaklist)
-            // console.log('\n\nEL NOMBRE ES ' + file)
-            // console.log(JSON.stringify(peakListData))
-            // console.log('\n\n' + JSON.stringify(original))
-            // console.log(original)
-            let result = peakListData.split('\n');
             let firstExist = false;
             let secondExist = false;
             var firstHeader, secondHeader, indexFrequency, toExport;
