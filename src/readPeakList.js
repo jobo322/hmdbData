@@ -10,7 +10,9 @@ let possibleMultipletsHeaders = ['no.', 'no', 'hs', 'type', 'atom1', 'multiplet1
 let possibleAssignmentsHeaders  = ['no.', 'no', 'atom', 'multiplet'];
 
 let possibleHeaders = reduceHeaders([possiblePeaksHeaders, possibleMultipletsHeaders,possibleAssignmentsHeaders]);
-let possibleDescriptors = ['multiplets', 'mulitplets', 'muliplets', 'peaks', 'assignments', 'assignment', 'assignements', 'assignement']
+let possibleDescriptors = ['multiplets', 'mulitplets', 'muliplets', 'nultiplets','mnltiplets', 'mutiplets', 'multuplets','peaks', 'assignments', 'assignmentrs', 'assignment', 'assignements', 'assignmets','assignement']
+let existedHeaders = [];
+
 fs.readdir(pathNmrPeakList, (err, listDir) => {
     var resultJson = {};
     var counter = 0
@@ -25,7 +27,7 @@ fs.readdir(pathNmrPeakList, (err, listDir) => {
         var peakListData = fs.readFileSync(path.join(pathNmrPeakList, file), 'utf8');
         var dataLowerCase = peakListData.toLowerCase();
         var original = String(peakListData) // for debug
-        temp.text = original;
+        
 
         peakListData = peakListData.replace(/[ ]+\.\.[ ]+/g, '-');
         if (peakListData.indexOf('\t') !== -1) {
@@ -38,7 +40,7 @@ fs.readdir(pathNmrPeakList, (err, listDir) => {
 
         var result = peakListData.replace(/\n{1,}/g, '\n').split('\n');
         var hasTable = result.some((aa) => aa.replace(/[ ]+/g, ' ').toLowerCase().split(' ').some(checkForDescriptors))
-        if (splitFileName[0] === 'HMDB0000394') console.log(result)
+        // if (splitFileName[0] === 'HMDB0000394') console.log(result)
         if (hasTable) {
             // return
             let descriptorExist = false;
@@ -76,14 +78,6 @@ fs.readdir(pathNmrPeakList, (err, listDir) => {
                     }
                 }
             })
-            if (splitFileName[0] === 'HMDB0000394') console.log(temp)
-            // console.log(JSON.stringify(temp))
-            // console.log(result.length)
-            // if (result.length === 1) {
-            //     console.log('\n\nEL NOMBRE ES ' + file)
-            //     console.log(JSON.stringify(peakListData))
-            //     console.log('\n\n' + JSON.stringify(original))
-            // }
         } else {
             let firstExist = false;
             let secondExist = false;
@@ -96,7 +90,6 @@ fs.readdir(pathNmrPeakList, (err, listDir) => {
                     eSplited.forEach((value, i) => {
                         toExport[firstHeader[i]] = value
                     })
-                    // console.log(toExport)
                     temp['peaks'].push(toExport)
                 } else if (e.toLowerCase().indexOf('address') !== -1) {
                     firstExist = true;
@@ -120,11 +113,22 @@ fs.readdir(pathNmrPeakList, (err, listDir) => {
                 }
             })
         }
-        // if (splitFileName[0] === 'HMDB0000394') console.log(temp)
+        // let headers = Object.keys(temp[][0])
+        // if (headers.indexOf('Table of PeaksNo.') !== -1) console.log(splitFileName[0], splitFileName[2])
+        // if (headers.indexOf('Multiplet1 (ppm)') !== -1) console.log(splitFileName[0], splitFileName[2])
+        // Object.keys(temp).forEach(d => {
+        //     let headers = Object.keys(temp[d][0])
+        //     existedHeaders.push(...headers.filter((header) => {
+        //         return !existedHeaders.some((eh) => {
+        //             return eh === header
+        //         })
+        //     }))
+        // })
         checkData(temp,splitFileName[0],splitFileName[2])
+        temp.text = original;
     })
-    fs.writeFileSync('export.json', JSON.stringify(resultJson))
-    console.log('counter ' + String(counter))
+    // fs.writeFileSync('export.json', JSON.stringify(resultJson))
+    console.log(existedHeaders)
 })
 
 function checkForHeaders(splitedLine, possibleHeaders, options = {}) {
@@ -162,4 +166,18 @@ async function checkData(peakData, name, id) {
         let filterKeys = keys.filter(checkForDescriptors)
         if (filterKeys.length !== keys.length - 1) console.log(name, id, '  it has not somethings');        
     }
+
+    let hasProblems = Object.keys(peakData).some((d) => {
+        let headers = Object.keys(peakData[d][0])
+        let counter = 0;
+        headers.forEach((header) => {
+            if(possibleHeaders.some((eh) => {
+                return eh === header
+            })) {
+                counter++
+            }
+        })
+        return !(counter !== headers.length)
+    })
+    if (hasProblems) console.log(name, id, '  it has strange things');        
 }
