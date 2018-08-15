@@ -28,14 +28,18 @@ fs.readdir(pathNmrPeakList, (err, listDir) => {
         var dataLowerCase = peakListData.toLowerCase();
         var original = String(peakListData) // for debug
         
-
-        peakListData = peakListData.replace(/[ ]+\.\.[ ]+/g, '-');
+        //looking for ranges and save it
+        peakListData = peakListData.replace(/[\t| ]+([0-9]+\.*[0-9]*)[\t| ]+\.{2}[\t| ]+([0-9]+\.*[0-9]*)/g, '\t$1-$2');
+        peakListData = peakListData.replace(/\(())
         if (peakListData.indexOf('\t') !== -1) {
             peakListData = peakListData.replace(/[ ]*\t+[ ]*/g, ';');
         } else {
             peakListData = peakListData.replace(/\n[ ]+/g,'\n');
             peakListData = peakListData.replace(/[ ]+/g, ';');
         }
+        console.log(peakListData)
+        return
+        
         if (peakListData[peakListData.length - 1] === '\n') peakListData = peakListData.slice(0, peakListData.length - 1)
 
         var result = peakListData.replace(/\n{1,}/g, '\n').split('\n');
