@@ -6,11 +6,11 @@ var pathNmrPeakList = '/home/abolanos/hmdbProject/hmdb_nmr_peak_lists/';
 // var pathNmrPeakList = 'C:\\Users\\juanCBA\\Documents\\hmdbProject\\hmdb_nmr_peak_lists'
 
 let possiblePeaksHeaders = ['no.', 'no', 'hz', '(hz)', 'ppm', '(ppm)', 'height'];
-let possibleMultipletsHeaders = ['no.', 'no', 'hs', 'type', 'atom1', 'multiplet1', 'ppm', '(ppm)', 'atom','multiplet'];
-let possibleAssignmentsHeaders  = ['no.', 'no', 'atom', 'multiplet'];
+let possibleMultipletsHeaders = ['no.', 'no', 'hs', 'type', 'atom1', 'multiplet1', 'ppm', '(ppm)', 'j (hz)','shift1 (ppm)', 'atom','multiplet'];
+let possibleAssignmentsHeaders  = ['vno.','no.', 'no', 'atom', 'multiplet', 'exp. shift (ppm)'];
 
 let possibleHeaders = reduceHeaders([possiblePeaksHeaders, possibleMultipletsHeaders,possibleAssignmentsHeaders]);
-let possibleDescriptors = ['multiplets', 'mulitplets', 'muliplets', 'nultiplets','mnltiplets', 'mutiplets', 'multuplets','peaks', 'assignments', 'assignmentrs', 'assignment', 'assignements', 'assignmets','assignement']
+let possibleDescriptors = ['multiplets', 'peaks', 'assignments', 'mulitplets', 'muliplets','nultiplets','mnltiplets', 'mutiplets', 'Multuplets','multuplets', 'assignmentrs', 'assignment', 'assignements', 'assignmets','assignement']
 let existedHeaders = [];
 
 fs.readdir(pathNmrPeakList, (err, listDir) => {
@@ -39,8 +39,8 @@ fs.readdir(pathNmrPeakList, (err, listDir) => {
         if (peakListData[peakListData.length - 1] === '\n') peakListData = peakListData.slice(0, peakListData.length - 1)
 
         var result = peakListData.replace(/\n{1,}/g, '\n').split('\n');
-        var hasTable = result.some((aa) => aa.replace(/[ ]+/g, ' ').toLowerCase().split(' ').some(checkForDescriptors))
-        // if (splitFileName[0] === 'HMDB0000394') console.log(result)
+        var hasTable = result.some((aa) => aa.replace(/[ ]{2,}/g, ' ').toLowerCase().split(' ').some(checkForDescriptors))
+        // if (splitFileName[0] === 'HMDB0000857' && splitFileName[2] === '1569') console.log(result)
         if (hasTable) {
             // return
             let descriptorExist = false;
@@ -49,22 +49,23 @@ fs.readdir(pathNmrPeakList, (err, listDir) => {
             let descriptor = [];
 
             result.forEach((e,i,arr) => {
-                e = e.replace(/\;$/, '');
-                hasTable = e.replace(/[ ]+/g, ' ').toLowerCase().split(' ').some(checkForDescriptors);
+                e = e.replace(/[ ]{2,}/g, ' ').replace(/\;$/, '');
+                hasTable = e.toLowerCase().split(' ').some(checkForDescriptors);
                 if (hasTable) {
                     descriptorExist = true;
                     headersExist = false;
-                    descriptor = e.toLowerCase().replace(/[ ]+/g, ' ').split(' ').filter(checkForDescriptors);
+                    descriptor = e.toLowerCase().split(' ').filter(checkForDescriptors);
                     temp[descriptor[0]] = [];
                 } else if (headersExist === descriptorExist && checkForHeaders(e.toLowerCase().split(';'), possibleHeaders)) {
                     descriptorExist = true;
-                    descriptor = ['peaks'];
+                    descriptor = ['peaks']; // todo: hacer que sea mas robusto
                     temp[descriptor[0]] = [];
                 }
                 // if (splitFileName[0] === 'HMDB0000394') console.log(descriptor)
-                var eSplited = e.split(';');
+                var eSplited = e.replace(/^[ ]+/,'').replace(/[ ]+$/,'').split(';');
+                // if (splitFileName[0] === 'HMDB0061883') console.log(JSON.stringify(original))
                 if (eSplited.length > 1 && descriptorExist) {
-                    // if (splitFileName[0] === 'HMDB0000394') console.log(e)
+                    // if (splitFileName[0] === 'HMDB0000056' && splitFileName[2] === '1058') console.log(e)
                     
                     if (!headersExist) {
                         headersExist = true;
@@ -127,7 +128,7 @@ fs.readdir(pathNmrPeakList, (err, listDir) => {
         checkData(temp,splitFileName[0],splitFileName[2])
         temp.text = original;
     })
-    // fs.writeFileSync('export.json', JSON.stringify(resultJson))
+    fs.writeFileSync('export.json', JSON.stringify(resultJson))
     console.log(existedHeaders)
 })
 
@@ -161,23 +162,29 @@ async function checkData(peakData, name, id) {
     let keys = Object.keys(peakData);
     if (!peakData.hasOwnProperty('peaks')) {
         console.log(name, id, '  it has not peaks')
-    } else if (keys.length > 2) {
-        if (keys.length < 4) console.log(name, id, '  it has not somethings');    
+    } else if (keys.length > 1) {
+        if (keys.length < 3) console.log(name, id, '  it has not somethings');    
         let filterKeys = keys.filter(checkForDescriptors)
-        if (filterKeys.length !== keys.length - 1) console.log(name, id, '  it has not somethings');        
-    }
-
-    let hasProblems = Object.keys(peakData).some((d) => {
-        let headers = Object.keys(peakData[d][0])
-        let counter = 0;
-        headers.forEach((header) => {
-            if(possibleHeaders.some((eh) => {
-                return eh === header
-            })) {
-                counter++
-            }
+        if (filterKeys.length !== keys.length) console.log(name, id, '  it has not somethings');        
+        let hasProblemsWithHeaders = Object.keys(peakData).some((d) => {
+            let headers = Object.keys(peakData[d][0])
+            let counter = 0;
+            headers.forEach((header) => {
+                header = header.toLowerCase();
+                if(possibleHeaders.some((eh) => {
+                    return eh === header
+                })) {
+                    counter++
+                }
+            })
+            // // if (name === 'HMDB0061883' && id === '1409') {
+            //     console.log(counter,headers.length)
+            //     if (counter !== headers.length) {
+            //         console.log(headers)
+            //     }
+            // }
+            return counter !== headers.length
         })
-        return !(counter !== headers.length)
-    })
-    if (hasProblems) console.log(name, id, '  it has strange things');        
+        if (hasProblemsWithHeaders) console.log(name, id, '  it has strange things with headers');
+    }   
 }
