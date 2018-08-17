@@ -3,15 +3,16 @@ const path = require('path');
 const papa = require('papaparse');
 
 // var pathNmrPeakList = '/home/abolanos/hmdbProject/hmdb_nmr_peak_lists/';
-var pathNmrPeakList = '/home/abolanos/hmdbProject/peakListWrong/';
+// var pathNmrPeakList = '/home/abolanos/hmdbProject/peakListWrong/';
 // var pathNmrPeakList = 'C:\\Users\\juanCBA\\Documents\\hmdbProject\\hmdb_nmr_peak_lists'
+var pathNmrPeakList = 'C:\\Users\\juanCBA\\Documents\\hmdbProject\\peakListWrong'
 
 let possiblePeaksHeaders = ['no.', 'no', 'hz', '(hz)', 'ppm', '(ppm)', 'height'];
 let possibleMultipletsHeaders = ['no.', 'no', 'hs', 'type', 'atom1', 'multiplet1', 'ppm', '(ppm)', 'j (hz)','shift1 (ppm)', 'atom','multiplet'];
 let possibleAssignmentsHeaders  = ['vno.','no.', 'no', 'atom', 'multiplet', 'exp. shift (ppm)'];
 
 let possibleHeaders = reduceHeaders([possiblePeaksHeaders, possibleMultipletsHeaders,possibleAssignmentsHeaders]);
-let possibleDescriptors = ['multiplets', 'peaks', 'assignments', 'mulitplets', 'muliplets','nultiplets','mnltiplets', 'mutiplets', 'multuplets', 'assignmentrs', 'assignment', 'assignements', 'assignmets','assignement']
+let possibleDescriptors = ['multiplets', 'peaks', 'assignments']//, 'mulitplets', 'muliplets','nultiplets','mnltiplets', 'mutiplets', 'multuplets', 'assignmentrs', 'assignment', 'assignements', 'assignmets','assignement']
 let existedHeaders = [];
 
 fs.readdir(pathNmrPeakList, (err, listDir) => {
@@ -32,18 +33,23 @@ fs.readdir(pathNmrPeakList, (err, listDir) => {
         //looking for ranges and save it
         peakListData = peakListData.replace(/[\t| ]+([0-9]+\.*[0-9]*)[\t| ]+\.{2}[\t| ]+([0-9]+\.*[0-9]*)/g, '\t$1-$2');
         peakListData = peakListData.replace(/\((\w+)\)(?=[\t| ]*)/g, '$1');
-        console.log(peakListData)
-        return
-        if (peakListData.indexOf('\t') !== -1) {
-            peakListData = peakListData.replace(/[ ]*\t+[ ]*/g, ';');
-        } else {
-            peakListData = peakListData.replace(/\n[ ]+/g,'\n');
-            peakListData = peakListData.replace(/[ ]+/g, ';');
-        }
+        peakListData = peakListData.replace(/\n*[N|n]+o\.*[\t| ]+/g,'\nNo.\t');
+        peakListData = peakListData.replace(/[ ]*\n{1,}[ ]*\n*/g, '\n').replace(/([ ]*\n{1,}[ ]*\n*)$/g, '')
+        // console.log(peakListData)
+        // return
+        // if (peakListData.indexOf('\t') !== -1) {
+        //     peakListData = peakListData.replace(/[ ]*\t+[ ]*/g, ';');
+        // } else {
+        //     peakListData = peakListData.replace(/\n[ ]+/g,'\n');
+        //     peakListData = peakListData.replace(/[ ]+/g, ';');
+        // }
         
-        if (peakListData[peakListData.length - 1] === '\n') peakListData = peakListData.slice(0, peakListData.length - 1);
+        // if (peakListData[peakListData.length - 1] === '\n') peakListData = peakListData.slice(0, peakListData.length - 1);
 
-        var result = peakListData.replace(/\n{1,}/g, '\n').split('\n');
+        var result = peakListData.split('\n');
+        console.log(JSON.stringify(original))
+        console.log(result)
+        return
         var hasTable = result.some((aa) => aa.replace(/[ ]{2,}/g, ' ').toLowerCase().split(' ').some(checkForDescriptors));
         // if (splitFileName[0] === 'HMDB0000857' && splitFileName[2] === '1569') console.log(result)
         if (hasTable) {
@@ -188,6 +194,7 @@ async function checkData(peakData, name, id) {
             //         console.log(headers)
             //     }
             // }
+            console.log(peakData)
             return counter !== headers.length
         })
         if (hasProblemsWithHeaders) console.log(name, id, '  it has strange things with headers');
