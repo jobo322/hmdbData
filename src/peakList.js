@@ -3,10 +3,10 @@ const path = require('path');
 const papa = require('papaparse');
 const levenshtein = require('fast-levenshtein');
 
-// var pathNmrPeakList = '/home/abolanos/hmdbProject/hmdb_nmr_peak_lists/';
+var pathNmrPeakList = '/home/abolanos/hmdbProject/hmdb_nmr_peak_lists/';
 // var pathNmrPeakList = '/home/abolanos/hmdbProject/peakListWrong/';
 // var pathNmrPeakList = 'C:\\Users\\juanCBA\\Documents\\hmdbProject\\hmdb_nmr_peak_lists'
-var pathNmrPeakList = 'C:\\Users\\juanCBA\\Documents\\hmdbProject\\peakListWrong'
+// var pathNmrPeakList = 'C:\\Users\\juanCBA\\Documents\\hmdbProject\\peakListWrong'
 
 const possiblePeaksHeaders = ['no.','shift-hz', 'shift-ppm', 'height'];//['no.', 'no', 'hz', '(hz)', 'ppm', '(ppm)', 'height'];
 const possibleMultipletsHeaders = ['no.', 'hs', 'type', 'atom', 'multiplet', 'range', 'coupling'];//['no.', 'no', 'hs', 'type', 'atom1', 'multiplet1', 'ppm', '(ppm)', 'j (hz)','shift1 (ppm)', 'atom','multiplet'];
@@ -46,7 +46,6 @@ fs.readdir(pathNmrPeakList, (err, listDir) => {
         var hasTable = result.some((e) => checkForDescriptors(e, {separator: ' ', justCheck: true}));//result.some((aa) => aa.replace(/[ ]{2,}/g, ' ').toLowerCase().split(' ').some(checkForDescriptors));
         // if (splitFileName[0] === 'HMDB0000857' && splitFileName[2] === '1569') console.log(result)
         if (hasTable) {
-            // return
             let descriptorExist = false;
             let headersExist = false;
             let headers = [];
@@ -65,9 +64,6 @@ fs.readdir(pathNmrPeakList, (err, listDir) => {
                     descriptor = ['peaks']; // todo: hacer que sea mas robusto
                     temp[descriptor[0]] = [];
                 }
-                // if (splitFileName[0] === 'HMDB0000394') console.log(descriptor)
-                // var eSplited = e.split(';');//e.replace(/^[ ]+/,'').replace(/[ ]+$/,'')
-                // if (splitFileName[0] === 'HMDB0061883') console.log(JSON.stringify(original))
                 if (descriptorExist) {
                     // if (splitFileName[0] === 'HMDB0000056' && splitFileName[2] === '1058') console.log(e)
                     eSplited = e.split(';');
@@ -78,8 +74,6 @@ fs.readdir(pathNmrPeakList, (err, listDir) => {
                         e = e.replace(/;ppm(?!;)/, ';range')
                         e = e.replace(/;ppm(?=;)/,';shift-ppm')
                         headers = getHeaders(e, possibleHeaders, {separator: ';', checked: true})
-                        // console.log(String(headers))
-                        // console.log(e)
                         headersExist = true;
                     } else if (headersExist) {
                         let toExport = {}
@@ -91,40 +85,30 @@ fs.readdir(pathNmrPeakList, (err, listDir) => {
                 }
             })
         } else {
-            // return
             let firstExist = false;
             let secondExist = false;
             var firstHeader, secondHeader, indexFrequency, toExport;
             //for some proton files than it has only peak list without descriptor
             if (peakListData.toLowerCase().indexOf('address') === -1) {
-                console.log(peakListData)
                 peakListData = peakListData.replace(/\n$/, '');
                 peakListData = peakListData.replace(/^\n/, '');
                 peakListData = peakListData.replace(/[;|\s]+[H|h]z[;|\s]+/, ';shift-hz;');
                 peakListData = peakListData.replace(/[;|\s]+ppm[;|\s]+/,';shift-ppm;');
                 peakListData = peakListData.replace(/[ ]+/g, ';')   
                 
-                // console.log(peakListData)
                 result = peakListData.split('\n');
-                // console.log(peakListData)
-                // console.log(splitFileName[0], splitFileName[2])
-                // console.log(temResult)
-                // return
                 result.some((ee) => {
-                    console.log(ee)
                     let candidateHeaders = getHeaders(ee, possibleHeaders, {checked: true, tolerance: 2})
-                    console.log(candidateHeaders, possibleHeaders)
                     let isHeaders = checkForHeaders(candidateHeaders, possibleHeaders)
                     if (isHeaders) {
-                        console.log('paso')
-                        console.log(candidateHeaders)
-                        console.log(ee)
                         firstHeader = candidateHeaders;
                         return true
+                    } else {
+                        return false
                     }
                 })
             }
-            return
+            // return
             result.forEach((e, i, arr) => {
                 var eSplited = e.split(';');
                 if (secondExist) {
@@ -138,20 +122,16 @@ fs.readdir(pathNmrPeakList, (err, listDir) => {
                     firstExist = true;
                     secondExist = false;
                     if (eSplited.length < 2) {
-                        console.log('problematic')
                         console.log(splitFileName[0],splitFileName[2])
-                        // console.log(e)
-                        // throw new Error('parsing of headers has been problematic');
+                        throw new Error('parsing of headers has been problematic');
                     }
                     firstHeader = eSplited.map(ee => ee.toLowerCase().replace(/[ ]+/g, ' '));
                 } else if (e.toLowerCase().indexOf('hz') !== -1) {
                     secondExist = true;
                     if (!firstExist) { // there is not the first line just No. hz ppm Height
                         if (eSplited.length <= 2) {
-                            console.log('problematic')
                             console.log(splitFileName[0],splitFileName[2])
-                            // console.log(e)
-                            // throw new Error('parsing of headers has been problematic');
+                            throw new Error('parsing of headers has been problematic');
                         }
                         firstHeader = eSplited.map(ee => ee.toLowerCase().replace(/[ ]+/g, ' '));
                         indexFrequency = Number.MAX_SAFE_INTEGER;
@@ -166,21 +146,10 @@ fs.readdir(pathNmrPeakList, (err, listDir) => {
                 }
             })
         }
-        // let headers = Object.keys(temp[][0])
-        // if (headers.indexOf('Table of PeaksNo.') !== -1) console.log(splitFileName[0], splitFileName[2])
-        // if (headers.indexOf('Multiplet1 (ppm)') !== -1) console.log(splitFileName[0], splitFileName[2])
-        // Object.keys(temp).forEach(d => {
-        //     let headers = Object.keys(temp[d][0])
-        //     existedHeaders.push(...headers.filter((header) => {
-        //         return !existedHeaders.some((eh) => {
-        //             return eh === header
-        //         })
-        //     }))
-        // })
-        // checkData(temp,splitFileName[0],splitFileName[2])
+        checkData(temp,splitFileName[0],splitFileName[2])
         temp.text = original;
     })
-    // fs.writeFileSync('export.json', JSON.stringify(resultJson))
+    fs.writeFileSync('export.json', JSON.stringify(resultJson))
 })
 
 function checkForHeaders(splitedLine, possibleHeaders) {
@@ -243,7 +212,7 @@ function reduceHeaders(vectors) {
     return Object.keys(result);
 }
 
-async function checkData(peakData, name, id) {
+function checkData(peakData, name, id) {
     let keys = Object.keys(peakData);
     if (!peakData.hasOwnProperty('peaks')) {
         console.log(name, id, '  it has not peaks')
@@ -252,7 +221,7 @@ async function checkData(peakData, name, id) {
         let filterKeys = keys.filter(checkForDescriptors)
         if (filterKeys.length !== keys.length) console.log(name, id, '  it has not somethings');        
         let hasProblemsWithHeaders = Object.keys(peakData).some((d) => {
-            let headers = Object.keys(peakData[d][0])
+            let headers = peakData[d][0] ? Object.keys(peakData[d][0]) : []
             let counter = 0;
             headers.forEach((header) => {
                 header = header.toLowerCase();
