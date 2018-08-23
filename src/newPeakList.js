@@ -9,8 +9,8 @@ var pathNmrPeakList = '/home/abolanos/hmdbProject/hmdb_nmr_peak_lists/';
 // var pathNmrPeakList = 'C:\\Users\\juanCBA\\Documents\\hmdbProject\\peakListWrong'
 
 const possiblePeaksHeaders = ['no.','shift-hz', 'shift-ppm', 'height'];//['no.', 'no', 'hz', '(hz)', 'ppm', '(ppm)', 'height'];
-const possibleMultipletsHeaders = ['no.', 'hs', 'type', 'atom', 'multiplet', 'range', 'coupling'];//['no.', 'no', 'hs', 'type', 'atom1', 'multiplet1', 'ppm', '(ppm)', 'j (hz)','shift1 (ppm)', 'atom','multiplet'];
-const possibleAssignmentsHeaders  = ['no.','atom', 'multiplet', 'exp. shift ppm', 'shift ppm'];
+const possibleMultipletsHeaders = ['no.', 'shift-ppm', 'hs', 'type', 'coupling', 'atom', 'multiplet', 'range'];//['no.', 'no', 'hs', 'type', 'atom1', 'multiplet1', 'ppm', '(ppm)', 'j (hz)','shift1 (ppm)', 'atom','multiplet'];
+const possibleAssignmentsHeaders  = ['no.','atom', 'exp. shift ppm', 'shift ppm', 'multiplet'];
 const possibleSignalType = ['m', 's', 'd', 't', 'dd', 'dt', 'q', 'p', 'pent', 'quint', 'quin','br. s.', 'dq','td','dd', 'ddd', 'tt', 'sext', 'hex', 'sept', 'hept', 'oct', 'non', 'none', 'qt'];
 
 const possibleHeaders = reduceHeaders([possiblePeaksHeaders, possibleMultipletsHeaders,possibleAssignmentsHeaders]);
@@ -47,80 +47,47 @@ fs.readdir(pathNmrPeakList, (err, listDir) => {
         // return
         var result = peakListData.split('\n');
 
-        var hasTable = result.some((e) => checkForDescriptors(e, {separator: ' ', justCheck: true}));//result.some((aa) => aa.replace(/[ ]{2,}/g, ' ').toLowerCase().split(' ').some(checkForDescriptors));
+        var hasTable = result.some((e) => checkForDescriptors(e, {separator: ' ', justCheck: true}));
         // if (splitFileName[0] === 'HMDB0000857' && splitFileName[2] === '1569') console.log(result)
-        if (hasTable) {
+        if (peakListData.toLowerCase().indexOf('address') === -1) {
             let descriptorExist = false;
             let headersExist = false;
             let headers = [];
             let descriptor = [];
-            // if (splitFileName[0] === 'HMDB0001341' && splitFileName[2] === '1683') console.log('entra')
             result.some((e,i,arr) => {
-                hasTable = checkForDescriptors(e, {separator: ' ', justCheck: true});
-                // if (splitFileName[0] === 'HMDB0001341' && splitFileName[2] === '1683') {
-                //     console.log(hasTable)
-                //     console.log(e)
-                // }
-                if (hasTable) {
-                    descriptorExist = true;
-                    headersExist = false;
-                    descriptor = checkForDescriptors(e, {separator: ' '});
-                    // if (splitFileName[0] === 'HMDB0001341' && splitFileName[2] === '1683') console.log(e)
-                    mayBeAdd(descriptor, temp, {value: [], name: splitFileName[0], id: splitFileName[2]});
-                    return false
-                } else if (headersExist === descriptorExist && checkForHeaders(e.toLowerCase().split(';'), possibleHeaders)) {
-                    descriptorExist = true;
-                    descriptor = 'peaks'
-                    // if (splitFileName[0] === 'HMDB0001341' && splitFileName[2] === '1683') console.log(e)
-                    mayBeAdd('peaks', temp,  {value: [], name: splitFileName[0], id: splitFileName[2]});
-                }
-                if (descriptorExist) {
+                e = e.toLowerCase().replace(/([a-zA-Z]+)1/g, '$1');
+                e = e.replace(/j hz/, 'coupling');
+                e = e.replace(/;hz/, ';shift-hz');
+                e = e.replace(/;ppm(?!;)/, ';range')
+                e = e.replace(/;ppm(?=;)/,';shift-ppm')
+                if (checkForHeaders(e.toLowerCase().split(';'), possibleHeaders)) { // check the function
+                    headers = getHeaders(e, possibleHeaders, {separator: ';', checked: true})
+                    descriptor = getDescriptorFromHeaders(headers, {
+                        'peaks':possiblePeaksHeaders,
+                        'multiplets': possibleMultipletsHeaders,
+                        'assignments': possibleAssignmentsHeaders
+                    }, splitFileName);
+                    if (descriptor) descriptorExist = true;
+                    mayBeAdd(descriptor, temp,  {value: [], name: splitFileName[0], id: splitFileName[2]});
+                } else {
                     eSplited = e.split(';');
-                    if (eSplited.length === 1 && e.length > 1) {
-                        console.log(splitFileName[0], splitFileName[2] ,'does not exist ; separator')
+                    if (!descriptorExist || eSplited.length === 1) return;
+                    if (eSplited.length !== headers.length) {
+                        console.log(splitFileName[0], splitFileName[2] ,'has not the right separator')
                         return true
                     }
-                    if (!headersExist) {
-                        e = e.toLowerCase().replace(/([a-zA-Z]+)1/g, '$1');
-                        e = e.replace(/j hz/, 'coupling');
-                        e = e.replace(/;hz/, ';shift-hz');
-                        e = e.replace(/;ppm(?!;)/, ';range')
-                        e = e.replace(/;ppm(?=;)/,';shift-ppm')
-                        headers = getHeaders(e, possibleHeaders, {separator: ';', checked: true})
-                        headersExist = true;
-                    } else if (headersExist) {
-                        let toExport = {}
-                        headers.forEach((head, i) => {
-                            toExport[head] = eSplited[i] || '-';
-                        })
-                        temp[descriptor].push(toExport)
-                    }
+                    let toExport = {};
+                    headers.forEach((head, i) => {
+                        toExport[head] = eSplited[i] || '-';
+                    });
+                    temp[descriptor].push(toExport);
                 }
             })
         } else {
+            // return
             let firstExist = false;
             let secondExist = false;
             var firstHeader, secondHeader, indexFrequency, toExport;
-            //for some proton files than it has only peak list without descriptor
-            if (peakListData.toLowerCase().indexOf('address') === -1) {
-                peakListData = peakListData.replace(/\n$/, '');
-                peakListData = peakListData.replace(/^\n/, '');
-                peakListData = peakListData.replace(/[;|\s]+[H|h]z[;|\s]+/, ';shift-hz;');
-                peakListData = peakListData.replace(/[;|\s]+ppm[;|\s]+/,';shift-ppm;');
-                peakListData = peakListData.replace(/[ ]+/g, ';')   
-                
-                result = peakListData.split('\n');
-                result.some((ee) => {
-                    let candidateHeaders = getHeaders(ee, possibleHeaders, {checked: true, tolerance: 2})
-                    let isHeaders = checkForHeaders(candidateHeaders, possibleHeaders)
-                    if (isHeaders) {
-                        firstHeader = candidateHeaders;
-                        return true
-                    } else {
-                        return false
-                    }
-                })
-            }
             result.some((e, i, arr) => {
                 var eSplited = e.split(';');
                 if (secondExist) {
@@ -158,11 +125,28 @@ fs.readdir(pathNmrPeakList, (err, listDir) => {
                 }
             })
         }
-        checkData(temp,splitFileName[0],splitFileName[2])
+        // checkData(temp,splitFileName[0],splitFileName[2])
         temp.text = original;
     })
-    fs.writeFileSync('export.json', JSON.stringify(resultJson))
+    // fs.writeFileSync('export.json', JSON.stringify(resultJson))
 })
+
+// const possiblePeaksHeaders = ['no.','shift-hz', 'shift-ppm', 'height'];//['no.', 'no', 'hz', '(hz)', 'ppm', '(ppm)', 'height'];
+// const possibleMultipletsHeaders = ['no.', 'shift ppm', 'hs', 'type', 'coupling', 'atom', 'multiplet', 'range'];//['no.', 'no', 'hs', 'type', 'atom1', 'multiplet1', 'ppm', '(ppm)', 'j (hz)','shift1 (ppm)', 'atom','multiplet'];
+// const possibleAssignmentsHeaders  = ['no.','atom', 'exp. shift ppm', 'shift ppm', 'multiplet'];
+
+function getDescriptorFromHeaders(headers, candidates, splitFileName) {
+    let descriptor;
+    let minDistance = Number.MAX_SAFE_INTEGER;
+    Object.keys(candidates).some((e) => {
+        let distance = compareHeaders(headers, candidates[e]) + candidates[e].length; //try to normalize choose between multiplets and assignments
+        if (minDistance > distance) {
+            minDistance = distance;
+            descriptor = e;
+        }
+    })
+    return descriptor;
+}
 
 function mayBeAdd(key, obj, options) {
     let {
@@ -179,6 +163,14 @@ function mayBeAdd(key, obj, options) {
 
 function checkForHeaders(splitedLine, possibleHeaders) {
     return splitedLine.some((e) => possibleHeaders.some((ee) => ee === e))
+}
+
+function compareHeaders(headers, possibleHeaders) {
+    let distance = 0;
+    headers.forEach((e,i) => {
+        if (!checkForHeaders([e], possibleHeaders)) distance++
+    });
+    return distance;
 }
 
 function getHeaders(data, possibleHeaders, options = {}) {
