@@ -11,6 +11,7 @@ var pathNmrPeakList = '/home/abolanos/hmdbProject/hmdb_nmr_peak_lists/';
 const possiblePeaksHeaders = ['no.','shift-hz', 'shift-ppm', 'height'];//['no.', 'no', 'hz', '(hz)', 'ppm', '(ppm)', 'height'];
 const possibleMultipletsHeaders = ['no.', 'hs', 'type', 'atom', 'multiplet', 'range', 'coupling'];//['no.', 'no', 'hs', 'type', 'atom1', 'multiplet1', 'ppm', '(ppm)', 'j (hz)','shift1 (ppm)', 'atom','multiplet'];
 const possibleAssignmentsHeaders  = ['no.','atom', 'multiplet', 'exp. shift ppm', 'shift ppm'];
+const possibleSignalType = ['m', 's', 'd', 't', 'dd', 'dt', 'q', 'p', 'pent', 'quint', 'quin','br. s.', 'dq','td','dd', 'ddd', 'tt', 'sext', 'hex', 'sept', 'hept', 'oct', 'non', 'none', 'qt'];
 
 const possibleHeaders = reduceHeaders([possiblePeaksHeaders, possibleMultipletsHeaders,possibleAssignmentsHeaders]);
 const possibleDescriptors = ['multiplets', 'peaks', 'assignments']//, 'mulitplets', 'muliplets','nultiplets','mnltiplets', 'mutiplets', 'multuplets', 'assignmentrs', 'assignment', 'assignements', 'assignmets','assignement']
@@ -36,11 +37,14 @@ fs.readdir(pathNmrPeakList, (err, listDir) => {
         peakListData = peakListData.replace(/\((\w+)\)(?=[\t| ]*)/g, '$1');
         // peakListData = peakListData.replace(/\n*[N|n]+o\.*[\t| ]+/g,'\nNo.\t');
         peakListData = peakListData.replace(/(m\w+p\w+ts*)\w*\t*\n*([[N|n]+o\.*])/,'$1\n$2');
+        peakListData = peakListData.replace(/[ ]*\n*[\t| ]*\n{1,}/g, '\n');
         peakListData = peakListData.replace(/[ ]*\n{1,}[\t| ]*\n*/g, '\n').replace(/([ ]*\n{1,}[ ]*\n*)$/g, '');
         peakListData = peakListData.replace(/[ ]*\t*([A|a]+tom[0-9]*)[ ]*\t*/g, '\t$1\t');
         peakListData = peakListData.replace(/[ ]*\t*([E|e]xp\.*){0,1}[ ]*\t*([S|s]hift[0-9]*)[ ]*\t*([[ppm]+|[Hz]+])[ ]*\t*/g, '\t$1 $2 $3\t');
+        
         peakListData = peakListData.replace(/[ ]{2,}|[ ]*\t+[ ]*/g, ';');
-
+        // if (splitFileName[0] === 'HMDB0000656' && splitFileName[2] === '1458') console.log(peakListData)
+        // return
         var result = peakListData.split('\n');
 
         var hasTable = result.some((e) => checkForDescriptors(e, {separator: ' ', justCheck: true}));//result.some((aa) => aa.replace(/[ ]{2,}/g, ' ').toLowerCase().split(' ').some(checkForDescriptors));
@@ -263,47 +267,40 @@ function checkData(peakData, name, id) {
         switch (e) {
             case 'peaks':
                 data.some((element, i) => {
-                    return possiblePeaksHeaders.some((h) => {
-                        let d = element[h]
-                        if (d) {
-                            if (isNaN(d)) {
-                                console.log(name, id, 'has not a number in ' + e + ' - ' + h + 'line ' + i);
-                                return true;
-                            }
-                        }
-                    })
+                    return checkForNumbers(element, name, id, e, i, possiblePeaksHeaders)
                 })
                 break;
             case 'multiplets':
                 let fail = false;
                 data.some((element, i) => {
-                    fail = ['no.', 'hs'].some((h) => {
-                        let d = element[h];
-                        if (d) {
-                            if (isNaN(d)) {
-                                console.log(name, id, 'has not a number in ' + e + ' - ' + h + ' line ' + i);
-                                return true;
-                            }
+                    fail = checkForNumbers(element, name, id, e, i,  ['no.', 'hs']);
+                    if (fail) return fail;
+                    let type = element['type'];
+                    let line;
+                    if (element['multiplets']) {
+                        if (!possibleSignalType.some((pt, i) => {
+                            return pt === type
+                        })) {
+                            console.log(name, id, 'has not a type in ' + e + ' line ' + i);
+                            return true
                         }
-                    });
-                    // if (fail) return fail;
-                    // if ()
+                    }
                 })
-                break
+                break;
             case 'assignments':
                 break;
         }
     })
 }
 
-// const possiblePeaksHeaders = ['no.','shift-hz', 'shift-ppm', 'height'];//['no.', 'no', 'hz', '(hz)', 'ppm', '(ppm)', 'height'];
-// const possibleMultipletsHeaders = ['no.', 'hs', 'type', 'atom', 'multiplet', 'range', 'coupling'];//['no.', 'no', 'hs', 'type', 'atom1', 'multiplet1', 'ppm', '(ppm)', 'j (hz)','shift1 (ppm)', 'atom','multiplet'];
-// const possibleAssignmentsHeaders  = ['no.','atom', 'multiplet', 'exp. shift ppm', 'shift ppm'];
-
-// const peaksShouldBeInstanceOf = {
-//     'no.': Number,
-//     'shift-hz': Number,
-//     'shift-ppm': Number,
-//     'height': Number
-// }
-
+function checkForNumbers (element, name, id, key, line,toCheck) {
+   return toCheck.some((h) => {
+        let d = element[h];
+        if (d) {
+            if (isNaN(d)) {
+                console.log(name, id, 'has not a number in ' + key + ' - ' + h + ' line ' + line);
+                return true;
+            }
+        }
+    });
+}
