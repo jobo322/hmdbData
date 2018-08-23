@@ -34,12 +34,12 @@ fs.readdir(pathNmrPeakList, (err, listDir) => {
         //looking for ranges and save it
         peakListData = peakListData.replace(/[\t| ]+([0-9]+\.*[0-9]*)[\t| ]+\.{2}[\t| ]+([0-9]+\.*[0-9]*)/g, '\t$1-$2');
         peakListData = peakListData.replace(/\((\w+)\)(?=[\t| ]*)/g, '$1');
-        peakListData = peakListData.replace(/\n*[N|n]+o\.*[\t| ]+/g,'\nNo.\t');
-        peakListData = peakListData.replace(/[ ]*\n{1,}[ ]*\n*/g, '\n').replace(/([ ]*\n{1,}[ ]*\n*)$/g, '');
+        // peakListData = peakListData.replace(/\n*[N|n]+o\.*[\t| ]+/g,'\nNo.\t');
+        peakListData = peakListData.replace(/(m\w+p\w+ts*)\w*\t*\n*([[N|n]+o\.*])/,'$1\n$2');
+        peakListData = peakListData.replace(/[ ]*\n{1,}[\t| ]*\n*/g, '\n').replace(/([ ]*\n{1,}[ ]*\n*)$/g, '');
         peakListData = peakListData.replace(/[ ]*\t*([A|a]+tom[0-9]*)[ ]*\t*/g, '\t$1\t');
         peakListData = peakListData.replace(/[ ]*\t*([E|e]xp\.*){0,1}[ ]*\t*([S|s]hift[0-9]*)[ ]*\t*([[ppm]+|[Hz]+])[ ]*\t*/g, '\t$1 $2 $3\t');
         peakListData = peakListData.replace(/[ ]{2,}|[ ]*\t+[ ]*/g, ';');
-
 
         var result = peakListData.split('\n');
 
@@ -50,23 +50,32 @@ fs.readdir(pathNmrPeakList, (err, listDir) => {
             let headersExist = false;
             let headers = [];
             let descriptor = [];
-            if (splitFileName[0] === 'HMDB0001262' && splitFileName[2] === '1673') console.log('entra')
-            result.forEach((e,i,arr) => {
+            // if (splitFileName[0] === 'HMDB0001341' && splitFileName[2] === '1683') console.log('entra')
+            result.some((e,i,arr) => {
                 hasTable = checkForDescriptors(e, {separator: ' ', justCheck: true});
+                // if (splitFileName[0] === 'HMDB0001341' && splitFileName[2] === '1683') {
+                //     console.log(hasTable)
+                //     console.log(e)
+                // }
                 if (hasTable) {
                     descriptorExist = true;
                     headersExist = false;
                     descriptor = checkForDescriptors(e, {separator: ' '});
-                    temp[descriptor] = [];
-                    return
+                    // if (splitFileName[0] === 'HMDB0001341' && splitFileName[2] === '1683') console.log(e)
+                    mayBeAdd(descriptor, temp, {value: [], name: splitFileName[0], id: splitFileName[2]});
+                    return false
                 } else if (headersExist === descriptorExist && checkForHeaders(e.toLowerCase().split(';'), possibleHeaders)) {
                     descriptorExist = true;
-                    descriptor = ['peaks']; // todo: hacer que sea mas robusto
-                    temp[descriptor[0]] = [];
+                    descriptor = 'peaks'
+                    // if (splitFileName[0] === 'HMDB0001341' && splitFileName[2] === '1683') console.log(e)
+                    mayBeAdd('peaks', temp,  {value: [], name: splitFileName[0], id: splitFileName[2]});
                 }
                 if (descriptorExist) {
-                    // if (splitFileName[0] === 'HMDB0000056' && splitFileName[2] === '1058') console.log(e)
                     eSplited = e.split(';');
+                    if (eSplited.length === 1 && e.length > 1) {
+                        console.log(splitFileName[0], splitFileName[2] ,'does not exist ; separator')
+                        return true
+                    }
                     if (!headersExist) {
                         e = e.toLowerCase().replace(/([a-zA-Z]+)1/g, '$1');
                         e = e.replace(/j hz/, 'coupling');
@@ -108,8 +117,7 @@ fs.readdir(pathNmrPeakList, (err, listDir) => {
                     }
                 })
             }
-            // return
-            result.forEach((e, i, arr) => {
+            result.some((e, i, arr) => {
                 var eSplited = e.split(';');
                 if (secondExist) {
                     if (eSplited.length < firstHeader.length + secondHeader - 1) console.warn('data has not all data');
@@ -136,13 +144,14 @@ fs.readdir(pathNmrPeakList, (err, listDir) => {
                         firstHeader = eSplited.map(ee => ee.toLowerCase().replace(/[ ]+/g, ' '));
                         indexFrequency = Number.MAX_SAFE_INTEGER;
                     } else {
-                        secondHeader = eSplited.map(ee => ee.toLowerCase().replace(/[ ]+/g, ' '));
+                        
+                        secondHeader = eSplited.map(ee => ee.toLowerCase().replace(/(hz|ppm)/, 'shift-$1'));
                         indexFrequency = firstHeader.indexOf('frequency');
                         firstHeader.splice(indexFrequency, 1, ...secondHeader);
                         firstHeader.splice(0,0,'no.');
                         firstHeader[firstHeader.length - 1] = 'height';
                     }
-                    temp['peaks'] = [];
+                    mayBeAdd('peaks', temp,  {value: [], name: splitFileName[0], id: splitFileName[2]});
                 }
             })
         }
@@ -151,6 +160,19 @@ fs.readdir(pathNmrPeakList, (err, listDir) => {
     })
     fs.writeFileSync('export.json', JSON.stringify(resultJson))
 })
+
+function mayBeAdd(key, obj, options) {
+    let {
+        value = '',
+        name,
+        id
+    } = options;
+    if (obj.hasOwnProperty(key)) {
+        console.log(name, id, 'the current descriptor exist')
+    } else {
+        obj[key] = value
+    }
+}
 
 function checkForHeaders(splitedLine, possibleHeaders) {
     return splitedLine.some((e) => possibleHeaders.some((ee) => ee === e))
@@ -219,7 +241,8 @@ function checkData(peakData, name, id) {
     } else if (keys.length > 1) {
         if (keys.length < 3) console.log(name, id, '  it has not somethings');    
         let filterKeys = keys.filter(checkForDescriptors)
-        if (filterKeys.length !== keys.length) console.log(name, id, '  it has not somethings');        
+        if (filterKeys.length !== keys.length) console.log(name, id, '  it has not somethings');
+                
         let hasProblemsWithHeaders = Object.keys(peakData).some((d) => {
             let headers = peakData[d][0] ? Object.keys(peakData[d][0]) : []
             let counter = 0;
@@ -231,15 +254,56 @@ function checkData(peakData, name, id) {
                     counter++
                 }
             })
-            // // if (name === 'HMDB0061883' && id === '1409') {
-            //     console.log(counter,headers.length)
-            //     if (counter !== headers.length) {
-            //         console.log(headers)
-            //     }
-            // }
-            // console.log(peakData)
             return counter !== headers.length
         })
         if (hasProblemsWithHeaders) console.log(name, id, '  it has strange things with headers');
-    }   
+    }
+    keys.forEach((e) => {
+        let data = peakData[e];
+        switch (e) {
+            case 'peaks':
+                data.some((element, i) => {
+                    return possiblePeaksHeaders.some((h) => {
+                        let d = element[h]
+                        if (d) {
+                            if (isNaN(d)) {
+                                console.log(name, id, 'has not a number in ' + e + ' - ' + h + 'line ' + i);
+                                return true;
+                            }
+                        }
+                    })
+                })
+                break;
+            case 'multiplets':
+                let fail = false;
+                data.some((element, i) => {
+                    fail = ['no.', 'hs'].some((h) => {
+                        let d = element[h];
+                        if (d) {
+                            if (isNaN(d)) {
+                                console.log(name, id, 'has not a number in ' + e + ' - ' + h + ' line ' + i);
+                                return true;
+                            }
+                        }
+                    });
+                    // if (fail) return fail;
+                    // if ()
+                })
+                break
+            case 'assignments':
+                break;
+        }
+    })
 }
+
+// const possiblePeaksHeaders = ['no.','shift-hz', 'shift-ppm', 'height'];//['no.', 'no', 'hz', '(hz)', 'ppm', '(ppm)', 'height'];
+// const possibleMultipletsHeaders = ['no.', 'hs', 'type', 'atom', 'multiplet', 'range', 'coupling'];//['no.', 'no', 'hs', 'type', 'atom1', 'multiplet1', 'ppm', '(ppm)', 'j (hz)','shift1 (ppm)', 'atom','multiplet'];
+// const possibleAssignmentsHeaders  = ['no.','atom', 'multiplet', 'exp. shift ppm', 'shift ppm'];
+
+// const peaksShouldBeInstanceOf = {
+//     'no.': Number,
+//     'shift-hz': Number,
+//     'shift-ppm': Number,
+//     'height': Number
+// }
+
