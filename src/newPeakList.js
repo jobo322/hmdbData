@@ -41,13 +41,10 @@ fs.readdir(pathNmrPeakList, (err, listDir) => {
         peakListData = peakListData.replace(/[ ]*\n{1,}[\t| ]*\n*/g, '\n').replace(/([ ]*\n{1,}[ ]*\n*)$/g, '');
         peakListData = peakListData.replace(/[ ]*\t*([A|a]+tom[0-9]*)[ ]*\t*/g, '\t$1\t');
         peakListData = peakListData.replace(/[ ]*\t*([E|e]xp\.*){0,1}[ ]*\t*([S|s]hift[0-9]*)[ ]*\t*([[ppm]+|[Hz]+])[ ]*\t*/g, '\t$1 $2 $3\t');
-        // peakListData = peakListData.replace(/[0-9]+\.[0-9]+[\t| ]+([[0-9]+[ ]*]+))
         peakListData = peakListData.replace(/[ ]{2,}|[ ]*\t+[ ]*/g, ';');
         // if (splitFileName[0] === 'HMDB0000656' && splitFileName[2] === '1458') console.log(peakListData)
         // return
         var result = peakListData.split('\n');
-
-        var hasTable = result.some((e) => checkForDescriptors(e, {separator: ' ', justCheck: true}));
         // if (splitFileName[0] === 'HMDB0000857' && splitFileName[2] === '1569') console.log(result)
         if (peakListData.toLowerCase().indexOf('address') === -1) {
             let descriptorExist = false;
@@ -70,7 +67,18 @@ fs.readdir(pathNmrPeakList, (err, listDir) => {
                     if (descriptor) descriptorExist = true;
                     mayBeAdd(descriptor, temp,  {value: [], name: splitFileName[0], id: splitFileName[2]});
                 } else {
-                    temp.push(parseDataLine(e, headers, descriptor))
+                    let lineSplited = splitDataLine(e, headers, descriptor, splitFileName);
+                    if (!lineSplited || lineSplited.length === 1) return;
+                    if (lineSplited.length !== headers.length) {
+                        // console.log(headers)
+                        // console.log(lineSplited)
+                        console.log(splitFileName[0], splitFileName[2], ' There is some wrong with this')
+                    }
+                    let result = {}
+                    headers.forEach((head, i) => {
+                        result[head] = lineSplited[i] || '-';
+                    });
+                    temp[descriptor].push(result)
                 }
             })
         } else {
@@ -121,44 +129,56 @@ fs.readdir(pathNmrPeakList, (err, listDir) => {
     fs.writeFileSync('export.json', JSON.stringify(resultJson))
 })
 
-function parseDataLine(line, headers, descriptor) {
-    let result;
+function splitDataLine(line, headers, descriptor, splitFileName) {
+    let lineSplited;
     switch (descriptor) {
         case 'peaks':
+            lineSplited = splitPeakLine(line, headers);
             break;
         case 'multiplets':
-            result = parseMultipletList(line, headers);
+            lineSplited = splitMultipletLine(line, headers);
             break;
         case 'assignments':
-            result = parseAssignmentLine(line, headers);
+            lineSplited = splitAssignmentLine(line, headers);
     }
-    return result;
+    return lineSplited;
+}
+function splitPeakLine(line, headers) {
+    let lineSplited = line.split(';');
+    if (lineSplited.length !== headers.length) {
+        line = line.replace(/(\d+)\s+/g,'$1;')
+        
+        lineSplited = line.split(';');
+    }
+    return lineSplited;
 }
 
-function parseMultipletLine(line, headers) {
+function splitAssignmentLine(line, headers) {
+    let lineSplited = line.split(';');
+    if (lineSplited.length !== headers.length) {
+        line = line.replace(/(\d+)\s+/g,'$1;')
+        line = line.replace(/^(\d+);(\d+\.\d+)/g,'$1;-;$2');
+        line = line.replace(/;$/,'');
+        lineplited = line.split(';');
+    }
+    return lineSplited;
+}
+function splitMultipletLine(line, headers) {
     let result = {}
-    let eSplited = line.split(';');
-    if (eSplited.length !== headers.length) {
-        line = line.replace(/(M[0-9]+)\s+/, '$1;');
+    let lineSplited = line.split(';');
+    if (lineSplited.length !== headers.length) { //falta adicionar el caso en que exista '-' y que no exista atom (poco usual)
+        line = line.replace(/(m[0-9]+)\s+/, '$1;');
         line = line.replace(/([a-z]+)\s+([0-9]+\.[0-9]+)/g, '$1;$2');
-        line = line.replace(/([0-9]+)(?!\.)\s+(M[0-9]+)/g, '$1;$2');
+        line = line.replace(/([0-9]+)(?!\.)\s+(m[0-9]+)/g, '$1;$2');
         line = line.replace(/([0-9]+\.[0-9]+)\s+([0-9]+)(?!\.)/g, '$1;$2');
         line = line.replace(/([0-9]+\.[0-9]+)\s+/g, '$1|');
         line = line.replace(/([0-9]+)\s+([a-z]+|\d+(?:\.))/g, '$1;$2'); //works
         // encapsulate the atom assignments when there is not coupling
         line = line.replace(/([a-z]+)\s+([0-9]+)(?!\.)/g, '$1;-;$2');
-        eSplited = line.split(t)
-    if (eSplited.length !== headers.length) {
-        console.log(splitFileName[0], splitFileName[2] ,'has not the right separator')
-        return true
+        lineSplited = line.split(';');
     }
-    headers.forEach((head, i) => {
-        result[head] = eSplited[i] || '-';
-    });
-    return result;
+    return lineSplited;
 }
-
-
 
 function getDescriptorFromHeaders(headers, candidates, splitFileName) {
     let descriptor;
