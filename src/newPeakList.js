@@ -24,6 +24,7 @@ fs.readdir(pathNmrPeakList, (err, listDir) => {
         if (file.toLowerCase().match('nmrtwod')) return
 
         let splitFileName = file.split('_');
+        if (splitFileName[0] !== 'HMDB0000754' && splitFileName[2] !== '1523') return
         if (!resultJson[splitFileName[0]]) resultJson[splitFileName[0]] = {};
         resultJson[splitFileName[0]][splitFileName[2]] = {};
         var temp = resultJson[splitFileName[0]][splitFileName[2]];
@@ -45,7 +46,7 @@ fs.readdir(pathNmrPeakList, (err, listDir) => {
         // if (splitFileName[0] === 'HMDB0000656' && splitFileName[2] === '1458') console.log(peakListData)
         // return
         var result = peakListData.split('\n');
-        // if (splitFileName[0] === 'HMDB0000857' && splitFileName[2] === '1569') console.log(result)
+        
         if (peakListData.toLowerCase().indexOf('address') === -1) {
             let descriptorExist = false;
             let headersExist = false;
@@ -64,6 +65,7 @@ fs.readdir(pathNmrPeakList, (err, listDir) => {
                         'multiplets': possibleMultipletsHeaders,
                         'assignments': possibleAssignmentsHeaders
                     }, splitFileName);
+                    // if (splitFileName[0] === 'HMDB0000754' && splitFileName[2] === '1523') console.log('the selected descriptor is ' + descriptor)
                     if (descriptor) descriptorExist = true;
                     mayBeAdd(descriptor, temp,  {value: [], name: splitFileName[0], id: splitFileName[2]});
                 } else {
@@ -126,7 +128,7 @@ fs.readdir(pathNmrPeakList, (err, listDir) => {
         // checkData(temp,splitFileName[0],splitFileName[2])
         temp.text = original;
     })
-    fs.writeFileSync('export.json', JSON.stringify(resultJson))
+    // fs.writeFileSync('export.json', JSON.stringify(resultJson))
 })
 
 function splitDataLine(line, headers, descriptor, splitFileName) {
@@ -184,7 +186,12 @@ function getDescriptorFromHeaders(headers, candidates, splitFileName) {
     let descriptor;
     let minDistance = Number.MAX_SAFE_INTEGER;
     Object.keys(candidates).some((e) => {
-        let distance = compareHeaders(headers, candidates[e]) + candidates[e].length; //try to normalize choose between multiplets and assignments
+        // if (splitFileName[0] === 'HMDB0000754' && splitFileName[2] === '1523') {
+        //     console.log('In get descriptors with ' + e)
+        //     console.log('the candidate', candidates[e])
+        //     console.log('the currents headers', headers)
+        // }
+        let distance = compareHeaders(headers, candidates[e], splitFileName); //try to normalize choose between multiplets and assignments
         if (minDistance > distance) {
             minDistance = distance;
             descriptor = e;
@@ -210,11 +217,20 @@ function checkForHeaders(splitedLine, possibleHeaders) {
     return splitedLine.some((e) => possibleHeaders.some((ee) => ee === e))
 }
 
-function compareHeaders(headers, possibleHeaders) {
-    let distance = 0;
-    headers.forEach((e,i) => {
-        if (!checkForHeaders([e], possibleHeaders)) distance++
-    });
+function compareHeaders(headers, possibleHeaders, splitFileName) {
+    let copyHeaders = headers.concat();
+    let copyPH = possibleHeaders.concat();
+    if (copyPH < copyHeaders) [copyHeaders, copyPH] = [copyPH, copyHeaders];
+    let distance = copyPH.reduce((dist, e) => {
+        // if (splitFileName[0] === 'HMDB0000754' && splitFileName[2] === '1523') {
+        //     console.log(e, copyHeaders.indexOf(e))
+        // }
+        if (copyHeaders.indexOf(e) === -1) dist++
+        return dist
+    }, 0);
+    // if (splitFileName[0] === 'HMDB0000754' && splitFileName[2] === '1523') {
+    //     console.log('the distance is ', distance);
+    // }
     return distance;
 }
 
