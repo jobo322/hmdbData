@@ -63,11 +63,13 @@ xmlStream.on('endElement: metabolite', async (metabolite) => {
                     let spectraData = xmlParser.toJson(spectraDataFile);
                 }
             }
-            if (listNmrPeakFiles.hasOwnProperty(accession)) entry = listNmrPeakFiles[accession][e.spectrum_id];
-            if (entry) {
-                var peakListData = fs.readFileSync(path.join(pathNmrPeakList, entry.fileName))
-                console.log(peakListData)
-                // readNmrPeakList(pathNmrPeakList, entry.fileName, arr[i])
+            if (listNmrPeakFiles.hasOwnProperty(accession)) {
+                entry = listNmrPeakFiles[accession][e.spectrum_id];
+                if (entry) {
+                    var peakListData = fs.readFileSync(path.join(pathNmrPeakList, entry.fileName))
+                    console.log(peakListData)
+                    // readNmrPeakList(pathNmrPeakList, entry.fileName, arr[i])
+                }
             }
         }
     });

@@ -59,7 +59,7 @@ fs.readdir(pathNmrPeakList, (err, listDir) => {
             let descriptor = [];
             peakListData.split('\n').some((e,i,arr) => {
                 let r = e.replace(/\s+/g, '').match(regexHeaders) || [];
-                if (r.length > 1) { // check the function
+                if (r.length > 1) {
                     headers = r;
                     descriptor = getDescriptorFromHeaders(headers, constHeaders, splitFileName);
                     if (compareHeaders(r, constHeaders[descriptor], splitFileName) > 2) return
@@ -68,27 +68,18 @@ fs.readdir(pathNmrPeakList, (err, listDir) => {
                 } else {
                     let lineSplited = splitDataLine(e, headers, descriptor, splitFileName);
                     if (!lineSplited || lineSplited.length === 1) return;
-                    // if (lineSplited.length !== headers.length) {
-                    //     // console.log(headers)
-                    //     // console.log(lineSplited)
-                    //     return
-                    //     console.log(splitFileName[0], splitFileName[2], ' There is some wrong with this');
-                    // }
                     let result = {}
                     headers.forEach((head, i) => {
                         result[head] = lineSplited[i] || '-';
                     });
                     let review = checkLine(result, headers, descriptor, splitFileName[0], splitFileName[2])
                     if (review) {
-                        // console.log(result)
-                        // console.log(temp[descriptor].length)
-                        return //throw new Error('problems with checkline')
+                        return 
                     }
                     temp[descriptor].push(result)
                 }
             })
         } else {
-            // return
             let firstExist = false;
             let secondExist = false;
             var firstHeader, secondHeader, indexFrequency, toExport;
@@ -106,7 +97,6 @@ fs.readdir(pathNmrPeakList, (err, listDir) => {
                     firstExist = true;
                     secondExist = false;
                     if (eSplited.length < 2) {
-                        console.log(splitFileName[0],splitFileName[2])
                         throw new Error('parsing of headers has been problematic');
                     }
                     firstHeader = eSplited.map(ee => ee.toLowerCase().replace(/[ ]+/g, ' '));
@@ -114,7 +104,6 @@ fs.readdir(pathNmrPeakList, (err, listDir) => {
                     secondExist = true;
                     if (!firstExist) { // there is not the first line just No. hz ppm Height
                         if (eSplited.length <= 2) {
-                            console.log(splitFileName[0],splitFileName[2])
                             throw new Error('parsing of headers has been problematic');
                         }
                         firstHeader = eSplited.map(ee => ee.toLowerCase().replace(/[ ]+/g, ' '));
@@ -173,16 +162,12 @@ function splitMultipletLine(line, headers, splitFileName) {
     line = line.replace(/([0-9]+[a-z]*)(?!\.)\s+(m[0-9]+)/g, '$1;$2');
     line = line.replace(/([0-9]+\.[0-9]+)\s+([0-9]+)(?!\.)/g, '$1;$2');
     line = line.replace(/([0-9]+\.[0-9]+)\s+/g, '$1|');
-    line = line.replace(/([0-9]+)\s+([a-z]+|\d+(?:\.))/g, '$1;$2'); //works
+    line = line.replace(/([0-9]+)\s+([a-z]+|\d+(?:\.))/g, '$1;$2');
     line = line.replace(/\s+-\s+/g, ';-;')
     if (headers.indexOf('coupling') === -1) { // encapsulate the atom assignments when there is not coupling
         line = line.replace(/(;[a-z]+)\s+([0-9]+[a-z]*)(?!\.)/g, '$1;$2');
     } else {
         line = line.replace(/(;[a-z]+)\s+([0-9]+[a-z]*)(?!\.)/g, '$1;-;$2');
-    }
-    if (splitFileName[0] === 'HMDB0000010') {
-
-        console.log(line)
     }
     return line.split(';');
 }
