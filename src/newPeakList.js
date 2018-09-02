@@ -160,7 +160,7 @@ function splitMultipletLine(line, headers, splitFileName) {
     line = line.replace(/(m[0-9]+)\s+/, '$1;');
     line = line.replace(/([a-z]+)\s+([0-9]+\.[0-9]+)/g, '$1;$2');
     line = line.replace(/([0-9]+[a-z]*)(?!\.)\s+(m[0-9]+)/g, '$1;$2');
-    line = line.replace(/([0-9]+\.[0-9]+)\s+([0-9]+)(?!\.)/g, '$1;$2');
+    line = line.replace(/([0-9]+\.[0-9]+)\s+([0-9]+)(?!\.|[0-9]+)/g, '$1;$2');
     line = line.replace(/([0-9]+\.[0-9]+)\s+/g, '$1|');
     line = line.replace(/([0-9]+)\s+([a-z]+|\d+(?:\.))/g, '$1;$2');
     line = line.replace(/\s+-\s+/g, ';-;')
