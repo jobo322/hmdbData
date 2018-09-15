@@ -1,6 +1,7 @@
 const nmrMetadata = require('nmr-metadata');
 const jcampconverter = require('jcampconverter');
 const fs = require('fs-extra');
+const path = require('path');
 
 async function nmrImport(ctx, result) {
     const ext = ctx.fileExt.toLowerCase();
@@ -17,18 +18,23 @@ async function nmrImport(ctx, result) {
 
 async function importFromJSON(ctx, result) {
     //check(ctx);
+    const filename = ctx.filename;
+    let toProcessPath = ctx.fileDir;
     var data = JSON.parse(await ctx.getContents('latin1'))
     result = Object.assign(result, data, {});
+    result.groups = [];
     result.attachmentIsSkipped = true;
-    fs.move()
-    //try to move the jcamp data to_process folder
+    try {
+        fs.move(data.filePath, toProcessPath)
+    } catch (e) {
+        console.log(e)
+    }
 }
 
 async function importJcamp(ctx, result) {
     result.kind = 'sample';
     const filename = ctx.filename;
     result.groups = [];
-
     result.jpath = ['spectra', 'nmr'];
     result.content_type = 'chemical/x-jcamp-dx';
     result.reference = filename.replace(/\.(fid|jdx)$/, '');
@@ -64,23 +70,5 @@ async function importJcamp(ctx, result) {
     }
 }
 nmrImport.source = [];
-
-async function tryMove(from, to, suffix = 0) {
-    if (suffix > 1000) {
-        throw new Error('tryMove: too many retries');
-    }
-    let newTo = to;
-    if (suffix > 0) {
-        newTo += '.' + suffix;
-    }
-    try {
-        await fs.move(from, newTo);
-    } catch (e) {
-        if (e.code !== 'EEXIST') {
-            throw new Error(`Could could rename ${from} to ${newTo}: ${e}`);
-        }
-        await tryMove(from, to, ++suffix);
-    }
-};
 
 module.exports = nmrImport;

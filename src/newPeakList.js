@@ -13,7 +13,7 @@ const constHeaders = {
     multiplets: ['no', 'shift-ppm', 'hs', 'type', 'coupling', 'atom', 'multiplet', 'range'],//['no.', 'no', 'hs', 'type', 'atom1', 'multiplet1', 'ppm', '(ppm)', 'j (hz)','shift1 (ppm)', 'atom','multiplet'];
     assignments: ['no','atom', 'exp-shift-ppm', 'shift-ppm', 'multiplet']
 }
-const possibleSignalType = ['m', 's', 'd', 't', 'dd', 'dt', 'q', 'p', 'pent', 'quint', 'quin','br. s.', 'dq','td','dd', 'ddd', 'tt', 'sext', 'hex', 'sept', 'hept', 'oct', 'non', 'none', 'qt'];
+const possibleSignalType = ['m', 's', 'd', 't', 'dd', 'dt', 'q','qq', 'p', 'pent', 'quint', 'quin','br. s.', 'dq','qd','td', 'tq','dd', 'ddd', 'tt', 'sext','sxt', 'hex', 'sept', 'hept', 'oct', 'non', 'none', 'qt'];
 
 const possibleHeaders = reduceHeaders(constHeaders);
 const regexHeaders = new RegExp(possibleHeaders.join('|').replace(/\./g,'\.'), 'g');
@@ -157,17 +157,17 @@ function splitAssignmentLine(line, headers) {
 function splitMultipletLine(line, headers, splitFileName) {
     let result = {}
     //falta adicionar el caso en que exista '-' y que no exista atom (poco usual)
-    line = line.replace(/(m[0-9]+)\s+/, '$1;');
-    line = line.replace(/([a-z]+)\s+([0-9]+\.[0-9]+)/g, '$1;$2');
-    line = line.replace(/([0-9]+[a-z]*)(?!\.)\s+(m[0-9]+)/g, '$1;$2');
-    line = line.replace(/([0-9]+\.[0-9]+)\s+([0-9]+)(?!\.)/g, '$1;$2');
-    line = line.replace(/([0-9]+\.[0-9]+)\s+/g, '$1|');
-    line = line.replace(/([0-9]+)\s+([a-z]+|\d+(?:\.))/g, '$1;$2');
-    line = line.replace(/\s+-\s+/g, ';-;')
+    line = line.replace(/(m[0-9]+)\s+/, '$1;'); // separar la manera en que se asignan los multipletes
+    line = line.replace(/([a-z]+|br. s.)\s+([0-9]+\.[0-9]+)/g, '$1;$2'); // separar 'type' y 'coupling'
+    line = line.replace(/([0-9]+[a-z]*)(?!\.)\s+(m[0-9]+)/g, '$1;$2'); // separar 'atom' y 'multiplet'
+    line = line.replace(/([0-9]+\.[0-9]+)\s+([0-9]+)(?!\.)/g, '$1;$2'); // separar 'shift-ppm' y 'hs'
+    line = line.replace(/([0-9]+\.[0-9]+)\s+/g, '$1|'); //separar agrupando los couplings (depende de que todos los otros decimales esten procesados)
+    line = line.replace(/([0-9]+)\s+([a-z]+|\d+(?:\.))/g, '$1;$2'); // separar 'hs' y type
+    line = line.replace(/\s+-\s+/g, ';-;')// preservar no asignaciones
     if (headers.indexOf('coupling') === -1) { // encapsulate the atom assignments when there is not coupling
-        line = line.replace(/(;[a-z]+)\s+([0-9]+[a-z]*)(?!\.)/g, '$1;$2');
+        line = line.replace(/(;[a-z]+|br. s.)\s+([0-9]+[a-z]*)(?!\.)/g, '$1;$2');
     } else {
-        line = line.replace(/(;[a-z]+)\s+([0-9]+[a-z]*)(?!\.)/g, '$1;-;$2');
+        line = line.replace(/(;[a-z]+|br. s.)\s+([0-9]+[a-z]*)(?!\.)/g, '$1;-;$2');
     }
     return line.split(';');
 }
@@ -328,8 +328,8 @@ function checkBulkData(peakData, name, id) {
                     fail = checkForNumbers(element, name, id, e, i,  ['no.', 'hs']);
                     if (fail) return fail;
                     let type = element['type'];
-                    let line;
-                    if (element['multiplets']) {
+                    if (element['multiplet']) {
+                        if (!isNaN) return true;
                         if (!possibleSignalType.some((pt, i) => {
                             return pt === type
                         })) {

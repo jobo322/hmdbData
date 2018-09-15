@@ -30,7 +30,7 @@ var stream = fs.createReadStream(pathMetaboliteMetadata + 'hmdb_metabolites.xml'
 var xmlStream = new XmlStream(stream);
 
 var count = 0;
-
+var withSpectra = 0;
 xmlStream.on('endElement: metabolite', async (metabolite) => {
     
     // if (count > 0) return//for debug
@@ -48,41 +48,50 @@ xmlStream.on('endElement: metabolite', async (metabolite) => {
         return
     }
 
-    spectra.forEach((e, i, arr) => {
+    spectra.some((e, i, arr) => {
         if (e.type.slice(8).toLowerCase() === 'nmroned') {
             var entry;
+            let exist = false
             if (listFidFiles.hasOwnProperty(accession)) {
                 entry = listFidFiles[accession][e.spectrum_id];
                 if (entry) {
-                    arr[i].jcamp = path.join(listFidFiles, entry.fileName.replace(/\.*/, '.jdx'))
+                    exist = true;
+                    // arr[i].jcamp = path.join(listFidFiles, entry.fileName.replace(/\.*/, '.jdx'))
                 }
             } else if (listNmrSpectra.hasOwnProperty(accession)) {
                 entry = listNmrSpectra[accession][e.spectrum_id]
                 if (entry) {
-                    let spectraDataFile = fs.readFileSync(path.join(pathNmrSpectra, entry.fileName), 'utf8');
-                    let spectraData = xmlParser.toJson(spectraDataFile);
+                    exist = true;
+                    // let spectraDataFile = fs.readFileSync(path.join(pathNmrSpectra, entry.fileName), 'utf8');
+                    // let spectraData = xmlParser.toJson(spectraDataFile);
                 }
             }
             if (listNmrPeakFiles.hasOwnProperty(accession)) {
                 entry = listNmrPeakFiles[accession][e.spectrum_id];
                 if (entry) {
-                    var peakListData = fs.readFileSync(path.join(pathNmrPeakList, entry.fileName))
-                    console.log(peakListData)
+                    exist = true;
+                    // var peakListData = fs.readFileSync(path.join(pathNmrPeakList, entry.fileName))
+                    // console.log(peakListData)
                     // readNmrPeakList(pathNmrPeakList, entry.fileName, arr[i])
                 }
             }
+            if (exist) {
+                withSpectra++
+                return true
+            }
         }
     });
-    let fd = fs.openSync(path.join(pathToSaveJSON, accession + '.json'), 'w')
-    fs.write(fd, JSON.stringify(result), (err) => {
-        fs.close(fd, handdleError)
-    });
+    // let fd = fs.openSync(path.join(pathToSaveJSON, accession + '.json'), 'w')
+    // fs.write(fd, JSON.stringify(result), (err) => {
+    //     fs.close(fd, handdleError)
+    // });
     count++
 });
 
 xmlStream.preserve('metabolite');
 xmlStream.on('end', () => {
     console.log(count)
+    console.log(withSpectra)
 }); 
 
 async function readNmrPeakList() {
