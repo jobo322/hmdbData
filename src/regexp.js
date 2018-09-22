@@ -14,13 +14,13 @@ var regexpByPair = {
     'hsshift-ppm': {regexp: '([0-9]+)\\s+(-*[0-9]+\\.[0-9]+)', flag: 'i'},
     'atomcoupling': {regexp: '([0-9]+[a-z]*)\\s+([0-9]+\\.[0-9]+|-)',flag: 'i'},
     'couplingatom': {regexp: '([0-9]+\\.[0-9]+|-)\\s+([0-9]+[a-z]*(?!\\.)[\\s+|;])',flag: 'i'},
-    'atommultiplet': {regexp: '([0-9]+[a-z]*(?!\\.))\\s+(m[0-9]+)',flag: 'i'},
+    'atommultiplet': {regexp: '([\\s+|;][0-9]+[a-z]*(?!\\.))\\s+(m[0-9]+)',flag: 'i'},
     'couplingmultiplet': {regexp: '([0-9]+\\.[0-9]+|-)\\s+(m[0-9]+)',flag: 'i'},
     'typecoupling': {regexp: '([a-z]+|br. s.)\\s+([0-9]+\\.[0-9]+|-)',flag: 'i'},
     'typeatom': {regexp: '([a-z]+|br. s.)\\s+([0-9]+[a-z]*(?!\\.))',flag: 'i'},
     'typemultiplet': {regexp: '([a-z]+|br. s.)\\s+(m[0-9]+)',flag: 'i'},
     'hstype': {regexp: '([0-9]+)\\s+([a-z]+|br. s.)',flag: 'i'},
-    'nohs': {regexp: '([0-9]+)\\s+([0-9]+)', flag: 'i'},
+    'nohs': {regexp: '(^[0-9]+)\\s+([0-9]+[\\s+|;])', flag: 'i'},
     'hsatom': {regexp: '([0-9]+(?!\\.))\\s+([0-9]+[a-z]*(?!\\.))',flag: 'i'},
     'multipletrange': {regexp: '(m[0-9]+)\\s+([0-9]+\\.[0-9]+\\|[0-9]+\\.[0-9]+)', flag: 'i'},
     'atomrange': {regexp: '([0-9]+[a-z]*(?!\\.))\\s+([0-9]+\\.[0-9]+\\|[0-9]+\\.[0-9]+)', flag: 'i'}
@@ -38,11 +38,12 @@ const constHeaders = {
 var toTest = [
     {
         text: [
-           '1 \t4.05 \t8 \tdd \t8.38 4.75 \t \tm01\t4.02 .. 4.07'
+           '1 \t4.05 \t8 \tdd \t8.38 4.75 \t \tm01\t4.02 .. 4.07\n4 \t2.22 \t3 \ts \tM01 \t2.21 .. 2.23'
         ],
         headers: ['no', 'shift-ppm', 'hs', 'type', 'coupling', 'atom', 'multiplet', 'range'],
         result: [
-            '1;4.05;8;dd;8.38|4.75;m01;4.02-4.07'
+            '1;4.05;8;dd;8.38|4.75;-;m01;4.02|4.07',
+            '4;2.22;3;s;-;-;m01;2.21|2.23'
             ],
         descriptor: 'multiplets'
     },
@@ -159,10 +160,12 @@ function splitAssignmentLine(line, headers, descriptor) {
 
 function splitMultipletLine(line, headers, splitFileName) {
     console.log(JSON.stringify(line))
-    line = line.replace(/\s+-\s+/g, ';-;')// preservar no asignaciones
     line = splitter(line, headers, 1);
-    line = line.replace(/([0-9]+[a-z]*)(?!\.)\s+/g, '$1|');
+    console.log(line)
     if (line.split(';').length !== headers.length) line = splitter(line, headers, 2);
+    if (line.split(';').length !== headers.length) line = splitter(line, headers, 3);
+    line = line.replace(/([0-9]+[a-z]*)(?!\.)\s+/g, '$1|');
+    console.log(line)
     return line;
 }
 
@@ -181,12 +184,22 @@ function splitter (line, headers, order) {
         }
     }
     console.log(listToDo)
-    let howToSeparate = order === 1 ? '$1;$2' : '$1;-;$2';
+    let howToSeparate;
+    switch (order) {
+        case 1:
+            howToSeparate = '$1;$2'
+            break
+        case 2:
+            howToSeparate = '$1;-;$2';
+            break;
+        case 3:
+            howToSeparate = '$1;-;-;$2';
+    }
     listToDo.forEach((e,i) => {
-        line = line.replace(regexpByPair[e], howToSeparate)
-        console.log(JSON.stringify(line), i)
-    })
-    return line
+        line = line.replace(regexpByPair[e], howToSeparate);
+        console.log(JSON.stringify(line), i);
+    });
+    return line;
 }
 
 function getNeighbors(headers, order) {

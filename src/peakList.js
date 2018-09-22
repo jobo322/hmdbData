@@ -7,9 +7,9 @@ const regexpByPair = require('./splitter/regexpByPair');
 const preprocess = require('./splitter/preprocess');
 
 // var pathNmrPeakList = '/home/abolanos/hmdbProject/hmdb_nmr_peak_lists/';
-// var pathNmrPeakList = '/home/abolanos/hmdbProject/peakListWrong/';
+var pathNmrPeakList = '/home/abolanos/hmdbProject/peakListWrong/';
 // var pathNmrPeakList = 'C:\\Users\\juanCBA\\Documents\\hmdbProject\\hmdb_nmr_peak_lists'
-var pathNmrPeakList = 'C:\\Users\\juanCBA\\Documents\\hmdbProject\\peakListWrong'
+// var pathNmrPeakList = 'C:\\Users\\juanCBA\\Documents\\hmdbProject\\peakListWrong'
 
 const constHeaders = {
     peaks: ['no','shift-hz', 'shift-ppm', 'height'],
@@ -34,7 +34,7 @@ fs.readdir(pathNmrPeakList, (err, listDir) => {
         if (!resultJson[splitFileName[0]]) resultJson[splitFileName[0]] = {};
         resultJson[splitFileName[0]][splitFileName[2]] = {};
         var temp = resultJson[splitFileName[0]][splitFileName[2]];
-        if (splitFileName[0] === 'HMDB0001901' || splitFileName[0] === 'HMDB0000292') return
+        // if (splitFileName[0] !== 'HMDB0001875') return
         var peakListData = fs.readFileSync(path.join(pathNmrPeakList, file), 'utf8');
         var dataLowerCase = peakListData.toLowerCase();
         var original = String(peakListData); // for debug
@@ -255,7 +255,7 @@ function checkBulkData(peakData, name, id) {
     } else if (keys.length > 1) {
         if (keys.length < 3) console.log(name, id, '  it has not somethings');                
         let hasProblemsWithHeaders = Object.keys(peakData).some((d) => {
-            let headers = peakData[d][0] ? Object.keys(peakData[d][0]) : []
+            var headers = peakData[d][0] ? Object.keys(peakData[d][0]) : []
             let counter = 0;
             headers.forEach((header) => {
                 header = header.toLowerCase();
@@ -270,7 +270,7 @@ function checkBulkData(peakData, name, id) {
         if (hasProblemsWithHeaders) console.log(name, id, '  it has strange things with headers');
     }
     keys.forEach((e) => {
-        let result
+        let result, headers;
         let data = peakData[e];
         switch (e) {
             case 'peaks':
@@ -279,7 +279,7 @@ function checkBulkData(peakData, name, id) {
                     console.log(name, id, ' empty descriptor ' + e)
                     return
                 }
-                let headers = Object.keys(data[0]);
+                headers = Object.keys(data[0]);
                 data.some((element, i) => {
                     return checkForNumbers(element, name, id, e, i, headers)
                 });
@@ -291,9 +291,9 @@ function checkBulkData(peakData, name, id) {
                     return
                 }
                 let fail = false;
+                headers = Object.keys(data[0]);
                 data.some((element, i) => {
-                    let toCheckForNumbers = ['no', 'hs', 'shift-ppm','range', 'coupling'].filter(e => {
-                        headers.indexOf(e) !== -1)
+                    let toCheckForNumbers = ['no', 'hs', 'shift-ppm','range', 'coupling'].filter(e => headers.indexOf(e) !== -1)
                     fail = checkForNumbers(element, name, id, e, i,  toCheckForNumbers);
                     if (fail) return fail;
                     let type = element['type'];
@@ -302,7 +302,7 @@ function checkBulkData(peakData, name, id) {
                         if (!possibleSignalType.some((pt, i) => {
                             return pt === type
                         })) {
-                            console.log(name, id, 'has not a type in ' + e + ' line ' + i);
+                            console.log(name +' '+id + ' has not a type in ' + e + ' line ' + i);
                             return true
                         }
                     }
@@ -342,13 +342,13 @@ function checkForNumbers (element, name, id, key, line, toCheck) {
                 info += JSON.stringify(j);
                 info += '\n';
                 if (isNaN(j) && j !== '-') {
-                    info = name + id + 'has not a number in ' + key + ' - ' + h + ' line ' + line + '\n' + info;
+                    info = name+' '+id +' '+'has not a number in ' + key + ' - ' + h + ' line ' + line + '\n' + info;
                     console.log(info);
                     return true;
                 }
             }
         } else {
-            console.log(name, id, 'has not a number in ' + key + ' - ' + h + ' line ' + line + ' with value: ' + d);
+            console.log(name+' '+ id + ' has not a number in ' + key + ' - ' + h + ' line ' + line + ' with value: ' + d);
         }
     });
 }

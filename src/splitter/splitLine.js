@@ -1,7 +1,7 @@
-module.exports.splitDataLine = function(line, headers, descriptor, regexpByPair) {
+ module.exports.splitDataLine = function(line, headers, descriptor, regexpByPair) {
     let lineSplited;
     let neighbors = getNeighbors(headers);
-    line = line.replace(/\s+-\s+/g, ';-;')// preservar no asignaciones
+    // line = line.replace(/[\s+|;]-[\s+|;]/g, ';-;')// preservar no asignaciones
     switch (descriptor) {
         case 'peaks':
             lineSplited = splitPeakLine(line, headers, regexpByPair);
@@ -39,10 +39,9 @@ function splitAssignmentLine(line, headers, descriptor) {
 
 function splitMultipletLine(line, headers, regexpByPair) {
     line = splitByNeighbors(line, headers, regexpByPair, 1);
-    line = line.replace(/([0-9]+[a-z]*)(?!\.)\s+/g, '$1|');
     if (line.split(';').length !== headers.length) line = splitByNeighbors(line, headers, regexpByPair, 2);
-    
-
+    if (line.split(';').length !== headers.length) line = splitByNeighbors(line, headers, regexpByPair, 3);
+    line = line.replace(/([0-9]+[a-z]*)(?!\.)\s+/g, '$1|');
     return line.split(';');
 }
 

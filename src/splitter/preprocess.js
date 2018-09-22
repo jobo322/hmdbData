@@ -5,10 +5,11 @@ module.exports.protonic = function(peakListData) {
     peakListData = peakListData.replace(/\s*j\s+hz\s+/g, '\tcoupling\t');
     peakListData = peakListData.replace(/[ ]*\t*(a+tom[0-9]*)[ ]*\t*/g, '\t$1\t');
     peakListData = peakListData.replace(/([a-z]{2,})1/g, '$1');
-    peakListData = peakListData.replace(/\s+(exp)\.*\s+(shift)\s+([[ppm]+|[hz]+])\s+/g, '\t$1-$2-$3\t');
+    peakListData = peakListData.replace(/\s+(exp)\.*\s+(shift)\s+([[ppm]+|[hz]+])(?=\s+)/g, '\t$1-$2-$3');
+    // console.log('\n\n' + JSON.stringify(peakListData));
     peakListData = peakListData.replace(/shift\s+ppm/g, 'shift-ppm');
     peakListData = peakListData.replace(/\s+hz\s+/g, '\tshift-hz\t');
-    peakListData = peakListData.replace(/\s*ppm(?=\s*\n+)/g,'\trange');
+    peakListData = peakListData.replace(/(\s+)ppm(?=\s*\n+)/g,'\trange');
     peakListData = peakListData.replace(/\s+ppm(?=\s+)/g, '\tshift-ppm');
     return peakListData;
 }
