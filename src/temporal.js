@@ -1,38 +1,26 @@
 const fs = require('fs');
 const path = require('path');
-const XmlStream = require('xml-stream');
-var pathMetaboliteMetadata = '/home/abolanos/hmdbProject/zipFiles/';
-var pathNmrPeakList = '/home/abolanos/hmdbProject/hmdb_nmr_peak_lists/';
-var pathFidFiles = '/home/abolanos/hmdbProject/hmdb_fid_files/';
-var pathNmrSpectra = '/home/abolanos/hmdbProject/hmdb_nmr_spectra/';
-var pathToSaveJSON = '/home/abolanos/hmdbProject/hmdb_metabolite_json/metaboliteWithNmrData'
-
-// var pathMetaboliteMetadata = 'C:\\Users\\JuanCBA\\Documents\\hmdbProject'
-// var pathNmrPeakList = 'C:\\Users\\JuanCBA\\Documents\\hmdbProject\\hmdb_nmr_peak_lists';
-// var pathFidFiles = 'C:\\Users\\JuanCBA\\Documents\\hmdbProject\\hmdb_fid_files';
-// var pathNmrSpectra = 'C:\\Users\\JuanCBA\\Documents\\hmdbProject\\hmdb_nmr_spectra';
+const peakTablesReader = require('./reader/peakList.js');
+// var pathMetaboliteMetadata = '/home/abolanos/hmdbProject/hmdb_metabolite_json/metaboliteWithNmrData/';
+// var pathNmrPeakList = '/home/abolanos/hmdbProject/hmdb_nmr_peak_lists/';
+// var pathFidFiles = '/home/abolanos/hmdbProject/hmdb_fid_files/';
+// var pathNmrSpectra = '/home/abolanos/hmdbProject/hmdb_nmr_spectra/';
 // var pathToSaveJSON = '/home/abolanos/hmdbProject/hmdb_metabolite_json/metaboliteWithNmrData'
-// console.log(pathMetaboliteMetadata)
-// // console.log(fs.readdirSync(pathMetaboliteMetadata))
-// return
 
-fs.readdir(pathToSaveJSON, (err, result) => {
-    if (err) throw err;
-    result.forEach((e, i) => {
-
-    })
-})
+var pathMetaboliteMetadata = 'C:\\Users\\JuanCBA\\Documents\\hmdbProject\\hmdb_metabolite_json\\metaboliteWithNmrData'
+var pathNmrPeakList = 'C:\\Users\\JuanCBA\\Documents\\hmdbProject\\hmdb_nmr_peak_lists';
+var pathOfJcamp = 'C:\\Users\\JuanCBA\\Documents\\hmdbProject\\hmdb_nmr_jcamp';
+var pathNmrSpectra = 'C:\\Users\\JuanCBA\\Documents\\hmdbProject\\hmdb_nmr_spectra';
 
 // @TODO: check if you can to pause the streaming while the metabolite is doing
 // create a list of nmr files to import with the metadata
-var listFidFiles = createListFromPath(pathFidFiles);
+var listOfJcamp = createListFromPath(pathOfJcamp);
 var listNmrPeakFiles = createListFromPath(pathNmrPeakList);
 var listNmrSpectra = createListFromPath(pathNmrSpectra, {
     pId: 5,
     pDimension: [1,2,3]
 });
-console.log(pathMetaboliteMetadata)
-var stream = fs.createReadStream(pathMetaboliteMetadata + 'urine_metabolites.xml');
+
 var pathToMetadata = [
     {
         saveIn: 'general',
@@ -88,17 +76,15 @@ var pathToMetadata = [
 
     }
 ]
-var xmlStream = new XmlStream(stream);
 
 var count = 0;
 var withSpectra = 0;
-xmlStream.on('endElement: metabolite', async (metabolite) => {
+let list = fs.readdirSync(pathMetaboliteMetadata);
+list.forEach((fileName, i) => {
+    let accession = fileName.replace(/\.\w+/,'')
+    let file = fs.readFileSync(path.format({dir: pathMetaboliteMetadata, base: fileName}));
+    let result = JSON.parse(file);
     
-    // if (count > 0) return//for debug
-    let accession = metabolite['accession'].$text;
-    let result = {}, jsonResult = {};
-    await parseChildren(metabolite.$children, result);
-
     var spectra = result['spectra'];
     if (!spectra) {
         console.warn('Accession: ' + accession + ' has not spectra');
@@ -116,11 +102,11 @@ xmlStream.on('endElement: metabolite', async (metabolite) => {
         if (e.type.slice(8).toLowerCase() === 'nmroned') {
             var entry;
             let exist = false
-            if (listFidFiles.hasOwnProperty(accession)) {
-                entry = listFidFiles[accession][e.spectrum_id];
+            if (listOfJcamp.hasOwnProperty(accession)) {
+                entry = listOfJcamp[accession][e.spectrum_id];
                 if (entry) {
-                    exist = true;
                     jsonResult.isExperimental = true
+                    exist = true;
                     // arr[i].jcamp = path.join(listFidFiles, entry.fileName.replace(/\.*/, '.jdx'))
                 }
             } else if (listNmrSpectra.hasOwnProperty(accession)) {
@@ -130,6 +116,7 @@ xmlStream.on('endElement: metabolite', async (metabolite) => {
                     jsonResult.hasPeakTable = true
                     // let spectraDataFile = fs.readFileSync(path.join(pathNmrSpectra, entry.fileName), 'utf8');
                     // let spectraData = xmlParser.toJson(spectraDataFile);
+                    // console.log(spectraData)
                 }
             }
             if (listNmrPeakFiles.hasOwnProperty(accession)) {
@@ -137,9 +124,9 @@ xmlStream.on('endElement: metabolite', async (metabolite) => {
                 if (entry) {
                     exist = true;
                     jsonResult.hasMultiplets = true
-                    // var peakListData = fs.readFileSync(path.join(pathNmrPeakList, entry.fileName))
+                    var peakListData = peakTablesReader({base: entry.fileName, dir: pathNmrPeakList});
                     // console.log(peakListData)
-                    // readNmrPeakList(pathNmrPeakList, entry.fileName, arr[i])
+                    readNmrPeakList(peakListData);
                 }
             }
             if (exist) {
@@ -148,22 +135,92 @@ xmlStream.on('endElement: metabolite', async (metabolite) => {
             }
         }
     });
-
-    // let fd = fs.openSync(path.join(pathToSaveJSON, accession + '.json'), 'w')
-    // fs.write(fd, JSON.stringify(result), (err) => {
-    //     fs.close(fd, handdleError)
-    // });
     count++
-});
+})
 
-xmlStream.preserve('metabolite');
-xmlStream.on('end', () => {
-    console.log(count)
-    console.log(withSpectra)
-}); 
+console.log(count)
+console.log(withSpectra)
+
+function readNmrPeakList(peakListData) {
+    let {
+        assignments,
+        multiplets,
+        peaks
+    } = peakListData;
+    
+    if (multiplets) {
+        multiplets.forEach(m => {
+            let range = {};
+            let signal = {};
+            if (m.range) {
+                let fromTo = m.range.split('|');
+                if (fromTo) var [from, to] = fromTo;
+                range.from = from;
+                range.to = to;
+            }
+            if (m['shift-ppm']) {
+                signal.delta = m['shift-ppm'];
+            }
+            if (m['type']) {
+                signal.multiplicity = m['type']
+            }
+            if (m['coupling'] && m['coupling'] !== '-') {
+                let couplings = m['coupling'].split('|');
+                signal.j = couplings.map((e) => ({coupling: e}));
+            } 
+            if (m['hs'] !== undefined) {
+                range.integral = m['hs'];
+                range.pubIntegral = m['hs'];
+            }
+            if (m['atom']) {
+                let atomSplited = m['atom'].split('|');
+                signal.nbAtoms = atomSplited.length;
+                range.pubAsignment = atomSplited;
+            }
+
+            if (!signal.pubAsignment) {
+                if (assignments) {
+                    assignments.some(assignment => {
+                        if (assignment['exp-shift-ppm'] || assignment['shift-ppm']) {
+                            let delta = assignment['exp-shift-ppm'] !== undefined ? assignment['exp-shift-ppm'] : assignment['shift-ppm'];
+                            if (delta === signal.delta) {
+                                if (assignment['atom']) {
+                                    let aAtomSplited = assignment['atom'].split('|');
+                                    signal.nbAtoms = aAtomSplited.length;
+                                    range.pubAsignment = aAtomSplited;
+                                }
+                            }
+                        }
+                    })
+                    
+                }
+            }
+            
+
+            range.signal = [signal]
+            console.log(range)
+        })
+        
+        // if (assignments) {
+        //     if (!signal.pubAsignment && assignments['atom']) {
+        //         let atomSplited = assignments['atom'].split('|');
+        //         signal.nbAtoms = atomSplited.length;
+        //         signal.pubAsignment = atomSplited
+        //     }
+        // }
+        
+        // if (peaks) {
+
+        // }
+        
+        // if (!signal.nbAtoms && multiplets['hs'] !== undefined) {
+            
+        // }
+    }
+}
+
 function getData(pathToMetadata, allMetadata) {
     let result = {};
-    console.log('entra')
     pathToMetadata.forEach((e, i) => {
         let {
             path,
@@ -183,6 +240,25 @@ function getData(pathToMetadata, allMetadata) {
     })
     return result;
 }
+
+function mayBeAdd(path, obj, options) {
+    let {
+        value = '',
+        name,
+        id
+    } = options;
+    let tmp = obj;
+    path.forEach(p => {
+        tmp = tmp[p]
+        if (!tmp) tmp[p] = {};
+    })
+    if (obj.hasOwnProperty(key)) {
+        console.log(name, id, 'the descriptor with name -' + key+ '- exist')
+    } else {
+        obj[key] = value
+    }
+}
+
 async function parseChildren(children, result) { // @TODO: review some problems with empty properties
     children.forEach((e, i, array) => {
         if (!e.$name) return;
@@ -231,4 +307,3 @@ function handdleError(err) {
     if (!err) return;
     throw err
 }
-

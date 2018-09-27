@@ -1,15 +1,9 @@
 const fs = require('fs');
 const path = require('path');
 const papa = require('papaparse');
-const levenshtein = require('fast-levenshtein');
-const splitter = require('./splitter/splitLine');
-const regexpByPair = require('./splitter/regexpByPair');
-const preprocess = require('./splitter/preprocess');
-
-// var pathNmrPeakList = '/home/abolanos/hmdbProject/hmdb_nmr_peak_lists/';
-var pathNmrPeakList = '/home/abolanos/hmdbProject/peakListWrong/';
-// var pathNmrPeakList = 'C:\\Users\\juanCBA\\Documents\\hmdbProject\\hmdb_nmr_peak_lists'
-// var pathNmrPeakList = 'C:\\Users\\juanCBA\\Documents\\hmdbProject\\peakListWrong'
+const splitter = require('../splitter/splitLine');
+const regexpByPair = require('../splitter/regexpByPair');
+const preprocess = require('../splitter/preprocess');
 
 const constHeaders = {
     peaks: ['no','shift-hz', 'shift-ppm', 'height'],
@@ -23,114 +17,100 @@ const regexHeaders = new RegExp(possibleHeaders.join('|').replace(/\./g,'\.'), '
 
 const possibleDescriptors = ['multiplets', 'peaks', 'assignments']
 let existedHeaders = [];
+function peakTablesReader(options = {}) {
+    let {
+        base,
+        dir
+    } = options;
 
-fs.readdir(pathNmrPeakList, (err, listDir) => {
-    var resultJson = {};
+    let splitFileName = base.split('_');
     var counter = 0
-    listDir.forEach((file) => {
-        if (file.toLowerCase().match('nmrtwod')) return
+    var temp = {}
+    var peakListData = fs.readFileSync(path.format({dir, base}), 'utf8');
+    var dataLowerCase = peakListData.toLowerCase();
+    peakListData = preprocess.general(peakListData);
 
-        let splitFileName = file.split('_');
-        if (!resultJson[splitFileName[0]]) resultJson[splitFileName[0]] = {};
-        resultJson[splitFileName[0]][splitFileName[2]] = {};
-        var temp = resultJson[splitFileName[0]][splitFileName[2]];
-        // if (splitFileName[0] !== 'HMDB0001875') return
-        var peakListData = fs.readFileSync(path.join(pathNmrPeakList, file), 'utf8');
-        var dataLowerCase = peakListData.toLowerCase();
-        var original = String(peakListData); // for debug
+    if (peakListData.toLowerCase().indexOf('address') === -1) {
+        peakListData = preprocess.protonic(peakListData);
+        let headers = [];
+        let descriptor = [];
         
-        peakListData = preprocess.general(peakListData);
-        
-        if (peakListData.toLowerCase().indexOf('address') === -1) {
-            peakListData = preprocess.protonic(peakListData);
-            let headers = [];
-            let descriptor = [];
-            
-            peakListData.split('\n').some((e,i,arr) => {
-                let r = e.replace(/\s+/g, '').match(regexHeaders) || [];
-                if (r.length > 1) {
-                    headers = r;
-                    descriptor = getDescriptorFromHeaders(headers, constHeaders, splitFileName);
-                    if (compareHeaders(r, constHeaders[descriptor], splitFileName) > 2) return
-                    if (descriptor) descriptorExist = true;
-                    let exist = mayBeAdd(descriptor, temp,  {value: [], name: splitFileName[0], id: splitFileName[2]});
-                    if (exist) return;
-                } else {
-                    let lineSplited = splitter.splitDataLine(e, headers, descriptor, regexpByPair);
-                    if (!lineSplited || lineSplited.length === 1) return;
-                    let result = {}
-                    // if (lineSplited.length !== headers.length) {
-                    //     // console.log(splitFileName[0], splitFileName[2])
-                    //     // console.log(JSON.stringify(e))
-                    //     // console.log(headers)
-                    //     // console.log(lineSplited)
-                    // }
-                    headers.forEach((head, i) => {
-                        result[head] = lineSplited[i];
-                    });
-                    let review = checkLine(result, headers, descriptor, splitFileName[0], splitFileName[2])
-                    if (review) {
-                        console.log(splitFileName[0], splitFileName[2]);
-                        console.log(JSON.stringify(e))
-                        console.log(lineSplited)
-                        console.log(result)
-                        return 
-                    }
-                    if (Array.isArray(descriptor)) {
-                        console.log(splitFileName[0], splitFileName[2]);
-                        console.log(JSON.stringify(e))
-                    }
-                    temp[descriptor].push(result)
+        peakListData.split('\n').some((e,i,arr) => {
+            let r = e.replace(/\s+/g, '').match(regexHeaders) || [];
+            if (r.length > 1) {
+                headers = r;
+                descriptor = getDescriptorFromHeaders(headers, constHeaders, splitFileName);
+                if (compareHeaders(r, constHeaders[descriptor], splitFileName) > 2) return
+                if (descriptor) descriptorExist = true;
+                let exist = mayBeAdd(descriptor, temp,  {value: [], name: splitFileName[0], id: splitFileName[2]});
+                if (exist) return;
+            } else {
+                let lineSplited = splitter.splitDataLine(e, headers, descriptor, regexpByPair);
+                if (!lineSplited || lineSplited.length === 1) return;
+                let result = {}
+                headers.forEach((head, i) => {
+                    result[head] = lineSplited[i];
+                });
+                let review = checkLine(result, headers, descriptor, splitFileName[0], splitFileName[2])
+                if (review) {
+                    console.log(splitFileName[0], splitFileName[2]);
+                    console.log(JSON.stringify(e))
+                    console.log(lineSplited)
+                    console.log(result)
+                    return 
                 }
-            })
-        } else {
-            let firstExist = false;
-            let secondExist = false;
-            var firstHeader, secondHeader, indexFrequency, toExport;
-            peakListData = peakListData.replace(/[ ]{2,}|[ ]*\t+[ ]*/g, ';');
-            peakListData.split('\n').some((e, i, arr) => {
-                var eSplited = e.split(';');
-                if (secondExist) {
-                    if (eSplited.length < firstHeader.length + secondHeader - 1) console.warn('data has not all data');
-                    toExport = {}, index = 0;
-                    eSplited.forEach((value, i) => {
-                        toExport[firstHeader[i]] = value
-                    })
-                    temp['peaks'].push(toExport)
-                } else if (e.toLowerCase().indexOf('address') !== -1) {
-                    firstExist = true;
-                    secondExist = false;
-                    if (eSplited.length < 2) {
+                if (Array.isArray(descriptor)) {
+                    console.log(splitFileName[0], splitFileName[2]);
+                    console.log(JSON.stringify(e))
+                }
+                temp[descriptor].push(result)
+            }
+        })
+    } else {
+        let firstExist = false;
+        let secondExist = false;
+        var firstHeader, secondHeader, indexFrequency, toExport;
+        peakListData = peakListData.replace(/[ ]{2,}|[ ]*\t+[ ]*/g, ';');
+        peakListData.split('\n').some((e, i, arr) => {
+            var eSplited = e.split(';');
+            if (secondExist) {
+                if (eSplited.length < firstHeader.length + secondHeader - 1) console.warn('data has not all data');
+                toExport = {}, index = 0;
+                eSplited.forEach((value, i) => {
+                    toExport[firstHeader[i]] = value
+                })
+                temp['peaks'].push(toExport)
+            } else if (e.toLowerCase().indexOf('address') !== -1) {
+                firstExist = true;
+                secondExist = false;
+                if (eSplited.length < 2) {
+                    throw new Error('parsing of headers has been problematic');
+                }
+                firstHeader = eSplited.map(ee => ee.toLowerCase().replace(/[ ]+/g, ' '));
+            } else if (e.toLowerCase().indexOf('hz') !== -1) {
+                secondExist = true;
+                if (!firstExist) { // there is not the first line just No. hz ppm Height
+                    if (eSplited.length <= 2) {
                         throw new Error('parsing of headers has been problematic');
                     }
                     firstHeader = eSplited.map(ee => ee.toLowerCase().replace(/[ ]+/g, ' '));
-                } else if (e.toLowerCase().indexOf('hz') !== -1) {
-                    secondExist = true;
-                    if (!firstExist) { // there is not the first line just No. hz ppm Height
-                        if (eSplited.length <= 2) {
-                            throw new Error('parsing of headers has been problematic');
-                        }
-                        firstHeader = eSplited.map(ee => ee.toLowerCase().replace(/[ ]+/g, ' '));
-                        indexFrequency = Number.MAX_SAFE_INTEGER;
-                    } else {
-                        secondHeader = eSplited.map(ee => ee.toLowerCase().replace(/(hz|ppm)/, 'shift-$1'));
-                        indexFrequency = firstHeader.indexOf('frequency');
-                        firstHeader.splice(indexFrequency, 1, ...secondHeader);
-                        firstHeader.splice(0,0,'no');
-                        firstHeader[firstHeader.length - 1] = 'height';
-                    }
-                    mayBeAdd('peaks', temp,  {value: [], name: splitFileName[0], id: splitFileName[2]});
+                    indexFrequency = Number.MAX_SAFE_INTEGER;
+                } else {
+                    secondHeader = eSplited.map(ee => ee.toLowerCase().replace(/(hz|ppm)/, 'shift-$1'));
+                    indexFrequency = firstHeader.indexOf('frequency');
+                    firstHeader.splice(indexFrequency, 1, ...secondHeader);
+                    firstHeader.splice(0,0,'no');
+                    firstHeader[firstHeader.length - 1] = 'height';
                 }
-            })
-        }
-        
-        checkBulkData(temp,splitFileName[0],splitFileName[2]);
-        temp.text = original;
-    })
-    fs.writeFileSync('export.json', JSON.stringify(resultJson))
-})
+                mayBeAdd('peaks', temp,  {value: [], name: splitFileName[0], id: splitFileName[2]});
+            }
+        })
+    }
+    checkBulkData(temp,splitFileName[0],splitFileName[2]);
+    return temp;
+}
 
-
+module.exports = peakTablesReader;
 
 function getDescriptorFromHeaders(headers, candidates, splitFileName) {
     let descriptor;
