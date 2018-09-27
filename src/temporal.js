@@ -1,16 +1,17 @@
 const fs = require('fs');
 const path = require('path');
 const peakTablesReader = require('./reader/peakList.js');
-// var pathMetaboliteMetadata = '/home/abolanos/hmdbProject/hmdb_metabolite_json/metaboliteWithNmrData/';
-// var pathNmrPeakList = '/home/abolanos/hmdbProject/hmdb_nmr_peak_lists/';
-// var pathFidFiles = '/home/abolanos/hmdbProject/hmdb_fid_files/';
-// var pathNmrSpectra = '/home/abolanos/hmdbProject/hmdb_nmr_spectra/';
+const xmlParser = require('xml2json')
+var pathMetaboliteMetadata = '/home/abolanos/hmdbProject/hmdb_metabolite_json/metaboliteWithNmrData';
+var pathNmrPeakList = '/home/abolanos/hmdbProject/peakListWrong';
+var pathOfJcamp = '/home/abolanos/hmdbProject/hmdb_nmr_jcamp';
+var pathNmrSpectra = '/home/abolanos/hmdbProject/hmdb_nmr_spectra';
 // var pathToSaveJSON = '/home/abolanos/hmdbProject/hmdb_metabolite_json/metaboliteWithNmrData'
 
-var pathMetaboliteMetadata = 'C:\\Users\\JuanCBA\\Documents\\hmdbProject\\hmdb_metabolite_json\\metaboliteWithNmrData'
-var pathNmrPeakList = 'C:\\Users\\JuanCBA\\Documents\\hmdbProject\\hmdb_nmr_peak_lists';
-var pathOfJcamp = 'C:\\Users\\JuanCBA\\Documents\\hmdbProject\\hmdb_nmr_jcamp';
-var pathNmrSpectra = 'C:\\Users\\JuanCBA\\Documents\\hmdbProject\\hmdb_nmr_spectra';
+// var pathMetaboliteMetadata = 'C:\\Users\\JuanCBA\\Documents\\hmdbProject\\hmdb_metabolite_json\\metaboliteWithNmrData'
+// var pathNmrPeakList = 'C:\\Users\\JuanCBA\\Documents\\hmdbProject\\peakListWrong';
+// var pathOfJcamp = 'C:\\Users\\JuanCBA\\Documents\\hmdbProject\\hmdb_nmr_jcamp';
+// var pathNmrSpectra = 'C:\\Users\\JuanCBA\\Documents\\hmdbProject\\hmdb_nmr_spectra';
 
 // @TODO: check if you can to pause the streaming while the metabolite is doing
 // create a list of nmr files to import with the metadata
@@ -95,17 +96,19 @@ list.forEach((fileName, i) => {
         return
     }
     jsonResult = getData(pathToMetadata, result);
-    jsonResult.isExperimental = false;
+    jsonResult.hasExperimentalData = false;
     jsonResult.hasMultiplets = false;
     jsonResult.hasPeakList = false;
     spectra.some((e, i, arr) => {
+        var nmr = []
         if (e.type.slice(8).toLowerCase() === 'nmroned') {
             var entry;
+            var spectrum = {};
             let exist = false
             if (listOfJcamp.hasOwnProperty(accession)) {
                 entry = listOfJcamp[accession][e.spectrum_id];
                 if (entry) {
-                    jsonResult.isExperimental = true
+                    jsonResult.hasExperimentalData = true
                     exist = true;
                     // arr[i].jcamp = path.join(listFidFiles, entry.fileName.replace(/\.*/, '.jdx'))
                 }
@@ -113,20 +116,21 @@ list.forEach((fileName, i) => {
                 entry = listNmrSpectra[accession][e.spectrum_id]
                 if (entry) {
                     exist = true;
-                    jsonResult.hasPeakTable = true
-                    // let spectraDataFile = fs.readFileSync(path.join(pathNmrSpectra, entry.fileName), 'utf8');
-                    // let spectraData = xmlParser.toJson(spectraDataFile);
-                    // console.log(spectraData)
+                    jsonResult.hasPeakTable = true;
+                    let spectraDataFile = fs.readFileSync(path.join(pathNmrSpectra, entry.fileName), 'utf8');
+                    let spectraData = xmlParser.toJson(spectraDataFile, {object: true});
+                    let metadata = extractSpectraMetadata(spectraData['nmr-one-d'])
+                    console.log(metadata)
                 }
             }
             if (listNmrPeakFiles.hasOwnProperty(accession)) {
                 entry = listNmrPeakFiles[accession][e.spectrum_id];
                 if (entry) {
                     exist = true;
-                    jsonResult.hasMultiplets = true
-                    var peakListData = peakTablesReader({base: entry.fileName, dir: pathNmrPeakList});
-                    // console.log(peakListData)
-                    readNmrPeakList(peakListData);
+                    jsonResult.hasMultiplets = true;
+                    // var peakListData = peakTablesReader({base: entry.fileName, dir: pathNmrPeakList});
+                    // let ranges = readNmrPeakList(peakListData);
+                    // spectrum.ranges = ranges;
                 }
             }
             if (exist) {
@@ -140,6 +144,69 @@ list.forEach((fileName, i) => {
 
 console.log(count)
 console.log(withSpectra)
+function extractSpectraMetadata(spectraData) {
+    let keyList = [
+        {key: 'solvent', saveAs: 'solvent'}, 
+        {key: 'nucleus', saveAs: 'nucleus', saveType: 'Array'}, 
+        {key: 'frequency', saveAs: 'frequency'}, 
+        {key: 'sample-ph', saveAs: 'ph'}, 
+        {key: 'sample-temperature', saveAs: 'temperature'},
+        {key: 'sample-temperature-units', saveAs: 'temperatureUnits'},
+        {key: 'chemical-shift-reference', saveAs: 'referenceShift'},
+        {key: 'references', saveAs: ''},
+        {key: 'sample-assessment', saveAs: 'sampleAssessment'},
+        {key: 'spectra-assessment', saveAs: 'spectraAssessment'},
+        {key: 'created-at', saveAs: 'creationDate'},
+        {key: 'update-at', saveAs: 'updateDate'},
+        {key: 'sample-concentration', saveAs: 'concentration'},
+        {key: 'sample-concentration-units', saveAs: 'concentrationUnits'},
+        {key: 'notes', saveAs: 'annotation'},
+        {key: 'sample-mass', saveAs: 'sampleMass'},
+        {key: 'sample-mass-units', saveAs: 'sampleMassUnits'}
+    ];
+    let metadata = checkToAdd(keyList, {}, spectraData);
+    
+    if (metadata.sampleMass) {
+        if (metadata.sampleMassUnits) {
+            metadata.sampleMass = {value: metadata.sampleMass, units: metadata.sampleMassUnits};
+            delete metadata.sampleMassUnits
+        }
+    }
+    if (metadata.concentrationUnits) {
+        if (metadata.concentrationUnits) {
+            metadata.sampleMass = {value: metadata.concentration, units: metadata.concentrationUnits};
+            delete metadata.concentrationUnits
+        }
+    }
+    if (metadata.temperature) {
+        if (metadata.temperatureUnits) {
+            let units = metadata.temperatureUnits;
+            if (units.toLowerCase() === 'celsius') {
+                metadata.temperature = metadata.temperature + 273.15;
+            }
+        }
+    }
+    metadata.peaksFromMetadata = getPeakList(spectraData);
+    
+    return metadata;
+
+    function checkToAdd(keyList, metadata, spectraData) {
+        keyList.forEach(obj => {
+            if (spectraData[obj.key] && !spectraData[obj.key].hasOwnProperty('nil')) {
+                metadata[obj.saveAs] = spectraData[obj.key];
+            }
+        });
+        return metadata;
+    }
+    function getPeakList(spectraData) {
+        let result = [];
+        if (spectraData['nmr-one-d-peaks']) {
+            let peaks = spectraData['nmr-one-d-peaks'];
+            result = peaks['nmr-one-d-peak'].map((peak) => ({ppm: peak['chemical-shift'], intensity: peak['intensity']}));
+        }
+        return result;
+    }
+}
 
 function readNmrPeakList(peakListData) {
     let {
@@ -148,13 +215,18 @@ function readNmrPeakList(peakListData) {
         peaks
     } = peakListData;
     
+    let ranges = [];
     if (multiplets) {
         multiplets.forEach(m => {
             let range = {};
             let signal = {};
             if (m.range) {
                 let fromTo = m.range.split('|');
-                if (fromTo) var [from, to] = fromTo;
+                if (fromTo.length === 2) {
+                    var [from, to] = fromTo;
+                } else {
+                    throw new Error('fromTo has not the right shape');
+                }
                 range.from = from;
                 range.to = to;
             }
@@ -195,28 +267,30 @@ function readNmrPeakList(peakListData) {
                     
                 }
             }
-            
-
-            range.signal = [signal]
-            console.log(range)
+            if (peaks) {
+                let peakList = peaks.filter((peak) => {
+                    let delta = peak['shift-ppm'];
+                    return delta >= range.from && delta <= range.to;
+                })
+                signal.peak = peakList.map((peak) => ({x: peak['shift-ppm'], height: peak['height']}))
+                // console.log('range is ', range.from, range.to)
+                // console.log(signal.peak)
+            }
+            range.signal = [signal];
+            ranges.push(range);
         })
-        
-        // if (assignments) {
-        //     if (!signal.pubAsignment && assignments['atom']) {
-        //         let atomSplited = assignments['atom'].split('|');
-        //         signal.nbAtoms = atomSplited.length;
-        //         signal.pubAsignment = atomSplited
-        //     }
-        // }
-        
-        // if (peaks) {
-
-        // }
-        
-        // if (!signal.nbAtoms && multiplets['hs'] !== undefined) {
-            
-        // }
     }
+    if (ranges.length === 0 && peaks) {
+        let peakList = peaks.map((peak) => {
+            let result = {};
+            if (peak['shift-ppm']) result.ppm = peak['shift-ppm'];
+            if (peak['shift-hz']) result.frequency = peak['shift-hz'];
+            if (peak['height']) result.intensity = peak['height'];
+            return result;
+        })
+        ranges.push({peaks: peakList});
+    }
+    return ranges;
 }
 
 function getData(pathToMetadata, allMetadata) {
