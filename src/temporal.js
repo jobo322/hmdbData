@@ -120,7 +120,7 @@ list.forEach((fileName, i) => {
                     spectrum.hasData = true;
                     spectrum.hasExperimentalData = true;
                     let jcamp = fs.readFileSync(path.join(pathOfJcamp, entry.fileName), 'utf8');
-                    spectrum.filename = entry.filename;
+                    spectrum.filename = entry.fileName;
                     spectrum = Object.assign({}, spectrum, nmrMetadata.parseJcamp(jcamp, {computeRanges: false}));
                 }
             } else if (listNmrSpectra.hasOwnProperty(accession)) {
@@ -141,6 +141,16 @@ list.forEach((fileName, i) => {
                     spectrum.hasData = true;
                     spectrum.hasPeakTable = true;
                     var peakListData = peakTablesReader({base: entry.fileName, dir: pathNmrPeakList});
+                    if (peakListData.peaks) {
+                        let peakList = peakListData.peaks.map((peak) => {
+                            let result = {};
+                            if (peak['shift-ppm']) result.ppm = peak['shift-ppm'];
+                            if (peak['shift-hz']) result.frequency = peak['shift-hz'];
+                            if (peak['height']) result.intensity = peak['height'];
+                            return result;
+                        })
+                        spectrum.peaksFromTable = peakList;
+                    }
                     let ranges = readNmrPeakList(peakListData);
                     spectrum.ranges = ranges;
                 }
@@ -157,18 +167,18 @@ list.forEach((fileName, i) => {
                 if (!spectrum.hasExperimentalData) {
                     let x = [], y = [], sd;
                     if (spectrum.hasPeakTable) {
-                        if (spectrum.range.peaks) {
+                        if (spectrum.peaksFromTable) {
                             let frequency;
-                            let peaks = spectrum.range.peaks;
+                            let peaks = spectrum.peaksFromTable;
                             if (peaks[0].frequency && peaks[0].ppm) {
                                 frequency = peaks[0].frequency / peaks[0].ppm;
                             }
-                            spectrum.range.peaks.forEach((p, i) => {
+                            peaks.forEach((p, i) => {
                                 x.push(p.ppm);
                                 y.push(p.intensity);
                             });
-                            sd = SD.fromXY(x, y, {frequency: frequency});
-                            data = sd.toJcamp();
+                            sd = SD.NMR.fromXY(x, y, {frequency: frequency});
+                            data = sd.toJcamp().toString('base64');
                         }
                     } else if (spectrum.hasMetadata) {
                         if (spectrum.peaksFromMetadata) {
@@ -176,17 +186,19 @@ list.forEach((fileName, i) => {
                                 x.push(p.ppm);
                                 y.push(p.intensity);
                             });
-                            sd = SD.fromXY(x, y, {frequency: frequency});
-                            data = sd.toJcamp();
+                            sd = SD.NMR.fromXY(x, y, {frequency: spectrum.frequency});
+                            data = sd.toJcamp().toString('base64');
                         }
                     }
                 } else {
                     data = fs.readFileSync(path.join(pathOfJcamp, spectrum.filename), 'base64');
                 }
-                if (!data) throw new Error('there is not data for an attachment');
+                if (!data) {
+                    throw new Error('there is not data for an attachment');
+                }
                 let attachment = {
                     reference: accession + '_' + e.spectrum_id,
-                    data: data,
+                    contents: data,
                     jpath: ['spectra', 'nmr'],
                     'content_type': 'chemical/x-jcamp-dx',
                     filename: accession + '_' + e.spectrum_id + '.jdx',
@@ -198,7 +210,8 @@ list.forEach((fileName, i) => {
             }
         }
     });
-    // nmr.forEach(n => console.log(Object.keys(n)))
+    jsonResult.attachments = nmr;
+    fs.writeFileSync('/home/abolanos/hmdbProject/toImport/' + accession + '.json', JSON.stringify(jsonResult))
     count++
 })
 
@@ -277,7 +290,7 @@ function extractSpectraMetadata(spectraData) {
             let peaks = spectraData['nmr-one-d-peaks'];
             peaks = peaks['nmr-one-d-peak'];
             if (!Array.isArray(peaks)) peaks = [peaks];
-            result = peaks.map((peak) => ({x: peak['chemical-shift'], intensity: peak['intensity']}));
+            result = peaks.map((peak) => ({ppm: peak['chemical-shift'], intensity: peak['intensity']}));
         }
         return result;
     }
@@ -355,16 +368,7 @@ function readNmrPeakList(peakListData) {
             ranges.push(range);
         })
     }
-    if (ranges.length === 0 && peaks) {
-        let peakList = peaks.map((peak) => {
-            let result = {};
-            if (peak['shift-ppm']) result.ppm = peak['shift-ppm'];
-            if (peak['shift-hz']) result.frequency = peak['shift-hz'];
-            if (peak['height']) result.intensity = peak['height'];
-            return result;
-        })
-        ranges = {peaks: peakList};
-    }
+    
     return ranges;
 }
 
@@ -404,6 +408,7 @@ function createListFromPath(path, options = {}) {
         let temp = e.split('_');
         let accession = temp[pAccession];
         let dimension = pDimension.map((e) => temp[e]).join('');
+        if (dimension === 'nmrtwod') return;
         let id = String(temp[pId]).replace(/\.xml/, '');
         if (!result[accession]) result[accession] = {};
         let entry = result[accession];

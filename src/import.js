@@ -21,18 +21,15 @@ async function importFromJSON(ctx, result) {
     //check(ctx);
     const filename = ctx.filename;
     let toProcessPath = ctx.fileDir;
-    var data = JSON.parse(await ctx.getContents('latin1'))
-    result = Object.assign(result, data, {});
+    var data = JSON.parse(await ctx.getContents('latin1'));
     result.groups = [];
     result.attachmentIsSkipped = true;
-    try {
-	console.log(fs.accessSync(data.filePath, fs.constants.R_OK))
-	console.log(data.filePath, path.join(toProcessPath, 'importationMetabolicTest.jdx'))
-        fse.move(data.filePath, path.join(toProcessPath, 'importationMetabolicTest.jdx'))
-    } catch (e) {
-        console.log(e)
-    }
-    console.log('paso')
+    result.metadataIsSkipped = true;
+    result.content = data.content;
+    result.attachments = data.attachments;
+    result.owner = data.owner;
+    result.kind = data.kind;
+    result.id = data.id;
 }
 
 async function importJcamp(ctx, result) {
@@ -61,9 +58,8 @@ async function importJcamp(ctx, result) {
     } else if (ext === '.jdx') {
         let meta;
         try {
-            meta = nmrMetadata.parseJcamp(contents, {computeRanges: true});
+            meta = nmrMetadata.parseJcamp(contents, {computeRanges: false});
         } catch (e) {
-            meta = nmrMetadata.parseJcamp(contents);
         }
         delete meta.isFid;
         delete meta.isFt;

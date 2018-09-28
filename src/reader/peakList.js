@@ -29,7 +29,6 @@ function peakTablesReader(options = {}) {
     var peakListData = fs.readFileSync(path.format({dir, base}), 'utf8');
     var dataLowerCase = peakListData.toLowerCase();
     peakListData = preprocess.general(peakListData);
-
     if (peakListData.toLowerCase().indexOf('address') === -1) {
         peakListData = preprocess.protonic(peakListData);
         let headers = [];
@@ -105,6 +104,7 @@ function peakTablesReader(options = {}) {
                 mayBeAdd('peaks', temp,  {value: [], name: splitFileName[0], id: splitFileName[2]});
             }
         })
+        
     }
     checkBulkData(temp,splitFileName[0],splitFileName[2]);
     return temp;
@@ -210,6 +210,7 @@ function checkBulkData(peakData, name, id) {
     let keys = Object.keys(peakData);
     if (!peakData.hasOwnProperty('peaks')) {
         console.log(name, id, '  it has not peaks')
+        console.log(peakData)
     } else if (keys.length > 1) {
         if (keys.length < 3) console.log(name, id, '  it has not somethings');                
         let hasProblemsWithHeaders = Object.keys(peakData).some((d) => {
