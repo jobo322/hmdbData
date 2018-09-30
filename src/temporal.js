@@ -85,7 +85,14 @@ var withSpectra = 0;
 let list = fs.readdirSync(pathMetaboliteMetadata);
 list.forEach((fileName, i) => {    
     let accession = fileName.replace(/\.\w+/,'');
-    let jsonResult = {id: [accession, ''], kind: 'sample', owner: 'admin@cheminfo.org',};
+    let jsonResult = {
+        id: [accession, ''], 
+        kind: 'sample', 
+        owner: 'admin@cheminfo.org',
+
+        groups: [],
+
+    };
     let file = fs.readFileSync(path.format({dir: pathMetaboliteMetadata, base: fileName}));
     let result = JSON.parse(file);
     
@@ -101,7 +108,7 @@ list.forEach((fileName, i) => {
 
     jsonResult.content = getData(pathToMetadata, result);
 
-    var nmr = []
+    var nmr = [];
     spectra.some((e, i) => {
         if (e.type.slice(8).toLowerCase() === 'nmroned') {
             var entry;
@@ -151,14 +158,8 @@ list.forEach((fileName, i) => {
                         })
                         spectrum.peaksFromTable = peakList;
                     }
-                    let ranges = readNmrPeakList(peakListData);
-                    spectrum.ranges = ranges;
-                }
-            }
-            if (!spectrum.ranges) {
-                if (spectrum.peaksFromMetadata) {
-                    let ranges = spectrum.peaksFromMetadata;
-                    spectrum.ranges = ranges;
+                    let range = readNmrPeakList(peakListData);
+                    spectrum.range = range;
                 }
             }
             
@@ -178,7 +179,7 @@ list.forEach((fileName, i) => {
                                 y.push(p.intensity);
                             });
                             sd = SD.NMR.fromXY(x, y, {frequency: frequency});
-                            data = sd.toJcamp().toString('base64');
+                            data = sd.toJcamp();
                         }
                     } else if (spectrum.hasMetadata) {
                         if (spectrum.peaksFromMetadata) {
@@ -187,20 +188,21 @@ list.forEach((fileName, i) => {
                                 y.push(p.intensity);
                             });
                             sd = SD.NMR.fromXY(x, y, {frequency: spectrum.frequency});
-                            data = sd.toJcamp().toString('base64');
+                            data = sd.toJcamp();
                         }
                     }
                 } else {
                     data = fs.readFileSync(path.join(pathOfJcamp, spectrum.filename), 'base64');
+                    delete spectrum.filename;
                 }
                 if (!data) {
                     throw new Error('there is not data for an attachment');
                 }
                 let attachment = {
                     reference: accession + '_' + e.spectrum_id,
-                    contents: data,
+                    contents: data.toString('base64'),
                     jpath: ['spectra', 'nmr'],
-                    'content_type': 'chemical/x-jcamp-dx',
+                    content_type: 'chemical/x-jcamp-dx',
                     filename: accession + '_' + e.spectrum_id + '.jdx',
                     metadata: spectrum,
                     field: 'jcamp',

@@ -8,6 +8,7 @@ async function nmrImport(ctx, result) {
     let ext = ctx.fileExt.toLowerCase();
     switch (ext) {
         case '.json':
+	case '.jdx':
             await importFromJSON(ctx, result);
             break
         case '.jdx':
@@ -18,15 +19,15 @@ async function nmrImport(ctx, result) {
 };
 
 async function importFromJSON(ctx, result) {
-    //check(ctx);
-    const filename = ctx.filename;
-    let toProcessPath = ctx.fileDir;
     var data = JSON.parse(await ctx.getContents('latin1'));
     result.groups = [];
     result.attachmentIsSkipped = true;
     result.metadataIsSkipped = true;
     result.content = data.content;
     result.attachments = data.attachments;
+    result.attachments.forEach((e,i,arr) => {
+        arr[i].contents = e.contents.toString('base64');
+    });
     result.owner = data.owner;
     result.kind = data.kind;
     result.id = data.id;
@@ -35,12 +36,10 @@ async function importFromJSON(ctx, result) {
 async function importJcamp(ctx, result) {
     result.kind = 'sample';
     const filename = ctx.filename;
-    console.log('entra a la funcion')
     result.groups = [];
     result.jpath = ['spectra', 'nmr'];
     result.content_type = 'chemical/x-jcamp-dx';
     result.reference = filename.replace(/\.(fid|jdx)$/, '');
-    console.log('entra a la funcion')
     let contents = await ctx.getContents('latin1');
     // username, catalog and batch are stored in the jcamp, need to parse it
     const jcamp = jcampconverter.convert(contents, {
