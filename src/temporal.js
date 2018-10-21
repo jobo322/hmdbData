@@ -5,17 +5,17 @@ const xmlParser = require('xml2json');
 const nmrMetadata = require('nmr-metadata');
 const OCL = require('openchemlib-extended');
 const SD = require('spectra-data');
-var pathMetaboliteMetadata = '/home/abolanos/hmdbProject/hmdb_metabolite_json/metaboliteWithNmrData';
-var pathNmrPeakList = '/home/abolanos/hmdbProject/peakListWrong';
-var pathOfJcamp = '/home/abolanos/hmdbProject/hmdb_nmr_jcamp';
-var pathNmrSpectra = '/home/abolanos/hmdbProject/hmdb_nmr_spectra';
-var pathToSaveJSON = '/home/abolanos/hmdbProject/jsonDataToImport'
+// var pathMetaboliteMetadata = '/home/abolanos/hmdbProject/hmdb_metabolite_json/metaboliteWithNmrData';
+// var pathNmrPeakList = '/home/abolanos/hmdbProject/peakListWrong';
+// var pathOfJcamp = '/home/abolanos/hmdbProject/hmdb_nmr_jcamp';
+// var pathNmrSpectra = '/home/abolanos/hmdbProject/hmdb_nmr_spectra';
+// var pathToSaveJSON = '/home/abolanos/hmdbProject/jsonDataToImport'
 
-// var pathMetaboliteMetadata = 'C:\\Users\\JuanCBA\\Documents\\hmdbProject\\hmdb_metabolite_json\\metaboliteWithNmrData'
-// var pathNmrPeakList =        'C:\\Users\\JuanCBA\\Documents\\hmdbProject\\hmdb_nmr_peak_lists';
-// var pathOfJcamp =            'C:\\Users\\JuanCBA\\Documents\\hmdbProject\\hmdb_nmr_jcamp';
-// var pathNmrSpectra =         'C:\\Users\\JuanCBA\\Documents\\hmdbProject\\hmdb_nmr_spectra';
-// var pathToSaveJSON =         'C:\\Users\\JuanCBA\\Documents\\hmdbProject\\jsonDataToImport'
+var pathMetaboliteMetadata = 'C:\\Users\\JuanCBA\\Documents\\hmdbProject\\hmdb_metabolite_json\\metaboliteWithNmrData'
+var pathNmrPeakList =        'C:\\Users\\JuanCBA\\Documents\\hmdbProject\\peakListWrong';
+var pathOfJcamp =            'C:\\Users\\JuanCBA\\Documents\\hmdbProject\\hmdb_nmr_jcamp';
+var pathNmrSpectra =         'C:\\Users\\JuanCBA\\Documents\\hmdbProject\\hmdb_nmr_spectra';
+var pathToSaveJSON =         'C:\\Users\\JuanCBA\\Documents\\hmdbProject\\jsonDataToImport'
 var debugg = false;
 // @TODO: check if you can to pause the streaming while the metabolite is doing
 // create a list of nmr files to import with the metadata
@@ -84,6 +84,13 @@ var pathToMetadata = [
 
 var count = 0;
 var withSpectra = 0;
+var withExperimentalData = 0;
+var withMetadata = 0;
+var withPeakTable = 0
+var withPM = 0
+var withPME = 0
+var withPE = 0
+var withME = 0
 let list = fs.readdirSync(pathMetaboliteMetadata);
 list.forEach((fileName, i) => {
 
@@ -92,8 +99,7 @@ list.forEach((fileName, i) => {
         id: [accession, ''], 
         kind: 'sample', 
         owner: 'admin@cheminfo.org',
-
-        groups: [],
+        groups: ['anonymousRead'],
 
     };
     let file = fs.readFileSync(path.format({dir: pathMetaboliteMetadata, base: fileName}));
@@ -116,6 +122,12 @@ list.forEach((fileName, i) => {
         let molecule = OCL.Molecule.fromSmiles(smile);
         let molfile = molecule.toMolfile();
         jsonResult.content.general.molfile = molfile;
+        let oclID = molecule.getIDCodeAndCoordinates();
+        jsonResult.content.general.ocl = {
+            value: oclID.idCode,
+            coordinates: oclID.coordinates,
+            index: molecule.getIndex()
+        }
     }
     
     var nmr = [];
@@ -157,7 +169,6 @@ list.forEach((fileName, i) => {
                     spectrum.hasData = true;
                     spectrum.hasPeakTable = true;
                     var peakListData = peakTablesReader({base: entry.fileName, dir: pathNmrPeakList});
-                    // console.log(entry.fileName)
                     if (peakListData.peaks) {
                         let peakList = peakListData.peaks.map((peak) => {
                             let result = {};
@@ -173,19 +184,38 @@ list.forEach((fileName, i) => {
                 }
             }
             
+            if (spectrum.hasPeakTable && spectrum.hasMetadata && spectrum.hasExperimentalData) {
+                withPME++
+            } else if (spectrum.hasPeakTable && spectrum.hasMetadata) {
+                 withPM++
+            } else if (spectrum.hasExperimentalData) {
+                withExperimentalData++
+                if (spectrum.hasMetadata) {
+                    withME++
+                } else if (spectrum.hasPeakTable) {
+                    withPE++
+                }
+            } else {
+                if (spectrum.hasMetadata) {
+                    withMetadata++
+                }
+                if (spectrum.hasPeakTable) {
+                    withPeakTable++
+                }
+            }
+            
+            return
             if (spectrum.hasData) {
                 let data;
+                let frequency, defaultFrequency;
                 if (!spectrum.hasExperimentalData) {
                     let x = [], y = [], sd;
                     if (spectrum.hasPeakTable) {
                         if (spectrum.peaksFromTable) {
                             let peaks = spectrum.peaksFromTable;
-                            let frequency = spectrum.frequency ? Number(spectrum.frequency.replace(/\s*[a-zA-Z]*/g, '')) : 600;
-                            // if (peaks[0].frequency && peaks[0].ppm) {
-                            //     frequency = peaks[0].frequency / peaks[0].ppm;
-                            // }
-                            // console.log('frequency is %s', frequency);
-                            
+                            spectrum.dimension = 1;
+                            spectrum.isFt = true;
+                            spectrum.isFid = false;
                             let from = Number.MAX_SAFE_INTEGER, to = Number.MIN_SAFE_INTEGER;
                             peaks.forEach((p, i, arr) => {
                                 arr[i].xL = 0.8;
@@ -200,31 +230,40 @@ list.forEach((fileName, i) => {
                                 }
                             });
                             if (debugg) console.log('this is from and to');
-                            if (debugg) console.log(from, to)
-                            let dataXY = peak2Vector(peaks, {from: from - 0.5, to: to + 0.5, nbPoints: 4*1024});
+                            if (debugg) console.log(from, to);
+                            from -= 0.5;
+                            to += 0.5;
+
+                            let defaultFrequency = to > 20 ? 150 : 600;
+                            frequency = spectrum.frequency ? Number(spectrum.frequency.replace(/\s*[a-zA-Z]*/g, '')) : defaultFrequency;
+                            
+                            let nbPoints = Math.round((to - from) / 0.001 + 1);
+                            // console.log('this is nbPoints %s', nbPoints);
+                            // console.log('frequency is %s', frequency)
+                            // console.log('from: %s to: %s', from, to);
+                            let [dataX, dataY] = _getXY(from, to, nbPoints);
+                            let gaussian = getGaussian(from * frequency, to * frequency, 2, nbPoints);
+                            // console.log('gaussian is array %s with length %s',Array.isArray(gaussian), gaussian.length)
+                            peaks.forEach((p) => {
+                                addPeak(dataY, p.x, p.intensity, from, to, nbPoints, gaussian);
+                            })
+                            
+                            // let dataXY = peak2Vector(peaks, {from: from - 0.5, to: to + 0.5, nbPoints: 8*1024});
                             if (debugg) console.log('this is the max Y');
-                            var maxY = Math.max(...dataXY.y);
-                            if (debugg) console.log(maxY);
-                            sd = SD.NMR.fromXY(dataXY.x, dataXY.y, {frequency: frequency});
+                            sd = SD.NMR.fromXY(dataX, dataY, {frequency: frequency});
                             // fixing an error in spectra-data
                             sd.putParam('$SW_h', sd.getParamDouble('.$SW_h'));
                             sd.putParam('$SW', sd.getParamDouble('.$SW'));
                             sd.putParam('$TD', sd.getParamDouble('.$TD'));
-                            // add parameters 
-                            sd.putParam('$BF1', frequency);
-                            sd.putParam('$SFO1', frequency);
-                            sd.putParam('$FCOR', 0.5);
-                            sd.putParam('$DECIM', 24);
-                            data = sd.toJcamp({encode: 'CSV'});
-                            // var toTest = SD.SD.fromJcamp(data)
-                            // console.log(toTest.unitsToArrayPoint(toTest.getLastX()))
-                            // console.log(toTest.unitsToArrayPoint(toTest.getFirstX()))
-                            // console.log({from: toTest.getFirstX(), to: toTest.getLastX()})
-                            // console.log(toTest.getVector({from: toTest.getFirstX() + 0.01, to: toTest.getLastX()-0.01}))
+                            data = Buffer.from(sd.toJcamp()).toString('base64');
+                            if (accession === 'HMDB0000036') {
+                                console.log(sd.toJcamp());
+                            }
                         }
                     } else if (spectrum.hasMetadata) {
                         if (spectrum.peaksFromMetadata) {
                             let peaks = spectrum.peaksFromMetadata;
+                            frequency = spectrum.frequency ? Number(spectrum.frequency.replace(/\s*[a-zA-Z]*/g, '')) : 600;
                             let from = Number.MAX_SAFE_INTEGER, to = Number.MIN_SAFE_INTEGER;
                             peaks.forEach((p, i, arr) => {
                                 arr[i].xL = 0.8;
@@ -244,25 +283,41 @@ list.forEach((fileName, i) => {
                                 arr[i].width = 0.003;
                                 arr[i].intensity = Number(p.intensity);
                             });
-                            let dataXY = peak2Vector(peaks, {from: from - 0.5, to: to + 0.5, nbPoints: 4*1024});
-                            let frequency = spectrum.frequency ? Number(spectrum.frequency.replace(/\s*[a-zA-Z]*/g, '')) : 600;
-                            sd = SD.NMR.fromXY(dataXY.x, dataXY.y, {frequency: frequency});
+                            spectrum.dimension = 1;
+                            spectrum.isFt = true;
+                            spectrum.isFid = false;
+                            from -= 0.5;
+                            to += 0.5;
+
+                            let defaultFrequency = to > 20 ? 150 : 600;
+                            frequency = spectrum.frequency ? Number(spectrum.frequency.replace(/\s*[a-zA-Z]*/g, '')) : defaultFrequency;
+
+                            let nbPoints = Math.round(((to - from) / 0.1) * frequency + 1);
+
+                            let [dataX, dataY] = _getXY(from, to, nbPoints);
+                            console.log('this is nbPoints %s', nbPoints);
+                            console.log('frequency is %s', frequency)
+                            console.log('from: %s to: %s', from, to);
+                            let gaussian = getGaussian(from * frequency, to * frequency, 4, nbPoints);
+                            peaks.forEach((p) => {
+                                addPeak(dataY, p.x, p.intensity, from, to, nbPoints, gaussian);
+                            })
+
+                            // let dataXY = peak2Vector(peaks, {from: from - 0.5, to: to + 0.5, nbPoints: 8*1024});
+                            sd = SD.NMR.fromXY(dataX, dataY, {frequency: frequency});
+                            if (!spectrum.ranges) {
+                                let ranges = sd.getRanges();
+                                spectrum.range = ranges;
+                            }
                             // fixing an error in spectra-data
                             sd.putParam('$SW_h', sd.getParamDouble('.$SW_h'));
                             sd.putParam('$SW', sd.getParamDouble('.$SW'));
                             sd.putParam('$TD', sd.getParamDouble('.$TD'));
-                            // add parameters 
-                            sd.putParam('$BF1', frequency);
-                            sd.putParam('$SFO1', frequency);
-                            sd.putParam('$FCOR', 0.5);
-                            sd.putParam('$DECIM', 24);
-                            data = sd.toJcamp({encode: 'CSV'});
-                            var toTest = SD.SD.fromJcamp(data)
-                            console.log(toTest.sd.spectra[0])
+                            data = Buffer.from(sd.toJcamp()).toString('base64');
                         }
                     }
                 } else {
-                    data = fs.readFileSync(path.join(pathOfJcamp, spectrum.filename), 'utf8');
+                    data = fs.readFileSync(path.join(pathOfJcamp, spectrum.filename), 'base64');
                     delete spectrum.filename;
                 }
                 if (!data) {
@@ -271,7 +326,7 @@ list.forEach((fileName, i) => {
                 
                 let attachment = {
                     reference: accession + '_' + e.spectrum_id,
-                    contents: data.toString('base64'),
+                    contents: data,
                     jpath: ['spectra', 'nmr'],
                     content_type: 'chemical/x-jcamp-dx',
                     filename: accession + '_' + e.spectrum_id + '.jdx',
@@ -280,20 +335,67 @@ list.forEach((fileName, i) => {
                 }
                 nmr.push(attachment);
                 withSpectra++
-            }
+            }   
         }
     });
     if (nmr.length === 0) {
-        console.log('has not nmr data %s', accession)
+        console.log('has not nmr data %s', accession);
         return
     }
     
     jsonResult.attachments = nmr;
-    // fs.writeFileSync('/home/abolanos/hmdbProject/toImport/' + accession + '.json', JSON.stringify(jsonResult))
     fs.writeFileSync(path.format({dir: pathToSaveJSON, base: accession + '.json'}), JSON.stringify(jsonResult))
     count++
 })
 
+console.log('withPM  %s', withPM)
+console.log('withPE %s', withPE)
+console.log('withPME %s', withPME)
+console.log('withME %s', withME)
+console.log('withMetadata %s',withMetadata)
+console.log('withExperimental %s',withExperimentalData);
+function addPeak(result, freq, height, from, to, nbPoints, gaussian) {
+    const center = (nbPoints * (freq - from) / (to - from)) | 0;
+    // console.log('center is %s', center)
+    const lnPoints = gaussian.length;
+    // console.log('ln points is %s', lnPoints);
+    var index = 0;
+    var indexLorentz = 0;
+    for (var i = center - lnPoints / 2; i < center + lnPoints / 2; i++) {
+        index = i | 0;
+        if (i >= 0 && i < nbPoints) {
+            result[index] = result[index] + gaussian[indexLorentz] * height;
+        }
+      indexLorentz++;
+    }
+    // console.log('\n');
+}
+
+function _getXY(from, to, nbPoints) {
+    const x = new Array(nbPoints);
+    const y = new Array(nbPoints);
+    const dx = (to - from) / (nbPoints - 1);
+    for (var i = 0; i < nbPoints; i++) {
+        y[i] = 0;
+        x[i] = from + i * dx;
+    }
+    return [x, y];
+}
+
+function getGaussian(from, to, lineWidth, nbPoints) {
+    let lineWidthPoints = (nbPoints * lineWidth / Math.abs(to - from)) / 2.355;
+    // console.log('line Width points is %s', lineWidthPoints)
+    let lnPoints = lineWidthPoints * 20;
+    var gaussianLength = lnPoints | 0;
+    if (gaussianLength === 0) throw new Error('gaussianLength should be not cero');
+    var gaussian = new Array(gaussianLength);
+    var b = lnPoints / 2;
+    var c = lineWidthPoints * lineWidthPoints * 2;
+    for (let i = 0; i < gaussianLength; i++) {
+        gaussian[i] = 1e9 * Math.exp(-((i - b) * (i - b)) / c);
+    }
+    return gaussian;
+}
 function extractSpectraMetadata(spectraData) {
     let keyList = [
         {key: 'solvent', saveAs: 'solvent'}, 
@@ -422,7 +524,6 @@ function peak2Vector(peaks, options = {}) {
         }
         return result;
     }
-    
     return { x: x, y: y };
 }
 
